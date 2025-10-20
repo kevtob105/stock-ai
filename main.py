@@ -32,7 +32,7 @@ from datetime import datetime
 load_dotenv()
 
 # Alpha Vantage configuration
-ALPHA_VANTAGE_API_KEY = os.getenv('3HISPVD658QG0V5G', '')
+ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', '')
 USE_ALPHA_VANTAGE = bool(ALPHA_VANTAGE_API_KEY)
 # ADD THIS after all imports (around line 20)
 
