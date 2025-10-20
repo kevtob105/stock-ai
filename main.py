@@ -294,9 +294,6 @@ IDX_SYMBOLS = [
     'GOOGL',  # Bank Mandiri
     'TSLA',  # Bank Negara Indonesia
     'NVDA',  # Telkom Indonesia
-    'BBRI.JK',
-    'BBCA.JK',
-    'ANTM.jk',
 ]
 
 # =============================================================================
