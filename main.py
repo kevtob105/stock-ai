@@ -25,13 +25,14 @@ from collections import deque
 import os
 from dotenv import load_dotenv
 from alpha_vantage.timeseries import TimeSeries
+from datetime import datetime
 
 
 # Load environment variables
 load_dotenv()
 
 # Alpha Vantage configuration
-ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', '')
+ALPHA_VANTAGE_API_KEY = os.getenv('3HISPVD658QG0V5G', '')
 USE_ALPHA_VANTAGE = bool(ALPHA_VANTAGE_API_KEY)
 # ADD THIS after all imports (around line 20)
 
@@ -328,6 +329,9 @@ def calculate_moving_averages(prices):
     ma20 = df.rolling(window=20).mean().iloc[-1] if len(prices) >= 20 else df.mean()
     ma50 = df.rolling(window=50).mean().iloc[-1] if len(prices) >= 50 else df.mean()
     return ma20, ma50
+
+
+
 
 # =============================================================================
 # SENTIMENT ANALYSIS (Simple version - upgrade with ML later)
