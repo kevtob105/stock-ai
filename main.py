@@ -528,6 +528,7 @@ def get_news():
     }
 
 @app.post("/api/scan")
+@app.get("/api/scan")
 async def trigger_scan():
     """Manually trigger market scan"""
     await scan_market()
