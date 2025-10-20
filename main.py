@@ -124,22 +124,41 @@ def get_stock_alpha_vantage(symbol):
         # Initialize Alpha Vantage client
         ts = TimeSeries(key=ALPHA_VANTAGE_API_KEY, output_format='pandas')
         
-        # Convert symbol format for Alpha Vantage
-        # IDX: BBCA.JK → needs mapping to international ticker
-        # US stocks: AAPL → direct use
-        av_symbol = symbol.replace('.JK', '')  # For now, use without .JK
+        # Convert symbol format
+        av_symbol = symbol.replace('.JK', '').strip()
         
-        # Get daily data
+        # Get daily data (compact = last 100 days)
         data, meta_data = ts.get_daily(symbol=av_symbol, outputsize='compact')
         
         if data is not None and not data.empty:
-            # Rename columns to match our format
+            # IMPORTANT: Alpha Vantage returns columns with prefixes
+            # Original columns: '1. open', '2. high', '3. low', '4. close', '5. volume'
+            
+            # Debug: Print original columns
+            print(f"   🔍 Original columns: {data.columns.tolist()}")
+            
+            # Rename to match our format
             data.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            
+            # Sort by date ascending (oldest first)
+            data = data.sort_index()
+            
+            # Convert to numeric (handle any string data)
+            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                data[col] = pd.to_numeric(data[col], errors='coerce')
+            
+            # Remove any NaN rows
+            data = data.dropna()
+            
             print(f"   ✅ Got {len(data)} days of data from Alpha Vantage")
+            print(f"   💰 Latest close: ${data['Close'].iloc[-1]:.2f}")
+            
             return data
         
     except Exception as e:
-        print(f"   ❌ Alpha Vantage error for {symbol}: {str(e)[:100]}")
+        print(f"   ❌ Alpha Vantage error for {symbol}: {str(e)}")
+        import traceback
+        traceback.print_exc()  # Print full error for debugging
     
     return None
 
@@ -403,6 +422,12 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     if len(df) < 20:
         return None
     
+    #ADD THIS - Debug actual data
+    print(f"   🧮 Processing {symbol_clean}:")
+    print(f"      Data points: {len(df)}")
+    print(f"      Latest close: {df['Close'].iloc[-1]:.2f}")
+    print(f"      Date range: {df.index[0]} to {df.index[-1]}")
+    
     prices = df['Close'].values
     volumes = df['Volume'].values
     
@@ -530,6 +555,11 @@ async def scan_market():
             if df is None or df.empty:
                 print(f"   ⚠️  Skipping {symbol} - No data available")
                 continue
+            # ADD THIS - Debug print to see actual data
+            print(f"   📊 Latest data for {symbol}:")
+            print(f"      Close: {df['Close'].iloc[-1]:.2f}")
+            print(f"      Volume: {df['Volume'].iloc[-1]:,}")
+            print(f"      Date: {df.index[-1]}")
             
             # Generate signal
             symbol_clean = symbol.replace('.JK', '')
