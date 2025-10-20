@@ -22,8 +22,17 @@ import feedparser
 import json
 import asyncio
 from collections import deque
+import os
+from dotenv import load_dotenv
+from alpha_vantage.timeseries import TimeSeries
 
 
+# Load environment variables
+load_dotenv()
+
+# Alpha Vantage configuration
+ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', '')
+USE_ALPHA_VANTAGE = bool(ALPHA_VANTAGE_API_KEY)
 # ADD THIS after all imports (around line 20)
 
 def get_stock_with_fallback(symbol):
@@ -91,6 +100,107 @@ def get_stock_with_fallback(symbol):
     # Generate realistic price movements with trend
     trend = np.linspace(0, np.random.randn() * 500, 60)
     noise = np.random.randn(60) * (base_price * 0.02)  # 2% volatility
+    close_prices = base_price + trend + noise
+    
+    mock_data = pd.DataFrame({
+        'Open': close_prices + np.random.randn(60) * (base_price * 0.01),
+        'High': close_prices + np.abs(np.random.randn(60) * (base_price * 0.015)),
+        'Low': close_prices - np.abs(np.random.randn(60) * (base_price * 0.015)),
+        'Close': close_prices,
+        'Volume': np.random.randint(10000000, 100000000, 60)
+    }, index=dates)
+    
+    return mock_data
+
+def get_stock_alpha_vantage(symbol):
+    """Fetch stock data from Alpha Vantage API"""
+    if not ALPHA_VANTAGE_API_KEY:
+        return None
+    
+    try:
+        print(f"   📡 Fetching {symbol} from Alpha Vantage...")
+        
+        # Initialize Alpha Vantage client
+        ts = TimeSeries(key=ALPHA_VANTAGE_API_KEY, output_format='pandas')
+        
+        # Convert symbol format for Alpha Vantage
+        # IDX: BBCA.JK → needs mapping to international ticker
+        # US stocks: AAPL → direct use
+        av_symbol = symbol.replace('.JK', '')  # For now, use without .JK
+        
+        # Get daily data
+        data, meta_data = ts.get_daily(symbol=av_symbol, outputsize='compact')
+        
+        if data is not None and not data.empty:
+            # Rename columns to match our format
+            data.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            print(f"   ✅ Got {len(data)} days of data from Alpha Vantage")
+            return data
+        
+    except Exception as e:
+        print(f"   ❌ Alpha Vantage error for {symbol}: {str(e)[:100]}")
+    
+    return None
+
+
+def get_stock_intelligent(symbol):
+    """
+    Intelligent stock data fetcher with multiple fallbacks:
+    1. Alpha Vantage (if API key available)
+    2. Yahoo Finance (primary free source)
+    3. Mock data (for development)
+    """
+    import time
+    
+    # Priority 1: Alpha Vantage (most reliable, but limited requests)
+    if USE_ALPHA_VANTAGE:
+        df = get_stock_alpha_vantage(symbol)
+        if df is not None and not df.empty:
+            return df
+        print(f"   ⚠️  Alpha Vantage failed, trying Yahoo Finance...")
+    
+    # Priority 2: Yahoo Finance (free, unlimited, but sometimes blocked)
+    try:
+        ticker = yf.Ticker(symbol)
+        
+        # Create session with headers
+        if not hasattr(ticker, 'session') or ticker.session is None:
+            import requests
+            ticker.session = requests.Session()
+        
+        ticker.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        })
+        
+        df = ticker.history(period='2mo', interval='1d', timeout=10)
+        
+        if not df.empty and len(df) >= 20:
+            print(f"   ✅ Got {len(df)} days from Yahoo Finance")
+            return df
+    
+    except Exception as e:
+        print(f"   ❌ Yahoo Finance error: {str(e)[:50]}")
+    
+    # Priority 3: Mock data (fallback for development)
+    print(f"   ⚠️  Using mock data for {symbol}")
+    import numpy as np
+    
+    dates = pd.date_range(end=pd.Timestamp.now(), periods=60, freq='D')
+    
+    # Realistic base prices
+    price_map = {
+        'BBCA': 10000, 'BBRI': 5000, 'BMRI': 6500, 'BBNI': 5500,
+        'TLKM': 4000, 'ASII': 5500, 'UNVR': 4500, 'GOTO': 100,
+        'AAPL': 180, 'MSFT': 420, 'GOOGL': 140, 'TSLA': 250, 'NVDA': 500
+    }
+    
+    symbol_clean = symbol.replace('.JK', '').replace('.US', '')
+    base_price = price_map.get(symbol_clean, np.random.randint(3000, 15000))
+    
+    # Generate realistic price movements
+    trend = np.linspace(0, np.random.randn() * 500, 60)
+    noise = np.random.randn(60) * (base_price * 0.02)
     close_prices = base_price + trend + noise
     
     mock_data = pd.DataFrame({
@@ -414,7 +524,7 @@ async def scan_market():
             time.sleep(2)  # 2 seconds between requests
             
             # Fetch data with multiple methods
-            df = get_stock_with_fallback(symbol)
+            df = get_stock_intelligent(symbol)
             
             if df is None or df.empty:
                 print(f"   ⚠️  Skipping {symbol} - No data available")
@@ -450,6 +560,13 @@ async def startup_event():
     """Run on app startup"""
     print("=" * 60)
     print("🚀 AI STOCK TRADING SYSTEM - STARTING")
+    print("=" * 60)
+    # ADD THIS:
+    if USE_ALPHA_VANTAGE:
+        print(f"✅ Alpha Vantage API: ENABLED")
+    else:
+        print(f"⚠️  Alpha Vantage API: DISABLED (no API key)")
+    
     print("=" * 60)
     
     # Initial scan
