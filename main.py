@@ -396,15 +396,37 @@ print(f"📊 Monitoring {len(IDX_SYMBOLS)} Indonesian stocks (IDX)")
 # =============================================================================
 
 def calculate_rsi(prices, period=14):
-    """Calculate Relative Strength Index"""
+    """
+    Calculate RSI using Wilder's Smoothing method
+    Same calculation as TradingView uses
+    """
+    if len(prices) < period + 1:
+        return 50  # Not enough data
+    
+    # Calculate price changes
     deltas = np.diff(prices)
-    seed = deltas[:period+1]
-    up = seed[seed >= 0].sum() / period
-    down = -seed[seed < 0].sum() / period
-    if down == 0:
+    
+    # Separate gains and losses
+    gains = np.where(deltas > 0, deltas, 0)
+    losses = np.where(deltas < 0, -deltas, 0)
+    
+    # Wilder's smoothing (same as TradingView)
+    # First average
+    avg_gain = np.mean(gains[:period])
+    avg_loss = np.mean(losses[:period])
+    
+    # Smooth subsequent values
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+    
+    # Calculate RS and RSI
+    if avg_loss == 0:
         return 100
-    rs = up / down
+    
+    rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
+    
     return rsi
 
 def calculate_macd(prices, fast=12, slow=26, signal=9):
