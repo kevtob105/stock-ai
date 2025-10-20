@@ -43,7 +43,8 @@ def get_stock_with_fallback(symbol):
     import time
     import requests
     
-        
+    
+    
     # Method 2: Try with yf.download
     try:
         time.sleep(1)
@@ -145,72 +146,44 @@ def get_stock_alpha_vantage(symbol):
 
 def get_stock_intelligent(symbol):
     """
-    Fetch stock data - SIMPLIFIED version that works
-    Exact copy of user's working test code
+    Fetch stock data using Yahoo Finance
+    Simplified version that actually works!
     """
+    import time
+    
     print(f"   🔍 Fetching {symbol.replace('.JK', '')}...")
     
     try:
-        # EXACT same approach as user's successful test
+        # Simple approach - just like your test!
         ticker = yf.Ticker(symbol)
         
-        # Try different periods
-        for period in ['5d', '1mo', '2mo', '3mo']:
+        # Fetch data - try multiple periods
+        for period in ['3mo', '2mo', '1mo', '5d']:
             try:
                 df = ticker.history(period=period)
                 
-                if not df.empty:
-                    print(f"   ✅ Yahoo Finance ({period}): {len(df)} days, Close=Rp {df['Close'].iloc[-1]:,.0f}")
+                if not df.empty and len(df) >= 5:
+                    print(f"   ✅ Yahoo Finance ({period}): Rp {df['Close'].iloc[-1]:,.0f}")
                     
-                    # If we have enough data, use it
+                    # Need at least 20 days for technical analysis
                     if len(df) >= 20:
                         return df
                     elif len(df) >= 5:
-                        # Extend to 60 days for better analysis
+                        # Extend data if needed
                         return extend_historical_data(df, target_days=60)
                 
             except Exception as e:
-                continue  # Try next period
-        
-        print(f"   ❌ No data available for {symbol}")
-        
-    except Exception as e:
-        print(f"   ❌ Yahoo error: {str(e)[:50]}")
-    
-    # Fallback
-    print(f"   🔄 Using mock data")
-    return generate_mock_data_idx(symbol)
-
-
-def get_stock_intelligent(symbol):
-    """Fetch stock data - keep it simple!"""
-    print(f"   🔍 Fetching {symbol.replace('.JK', '')}...")
-    
-    try:
-        ticker = yf.Ticker(symbol)
-        
-        for period in ['5d', '1mo', '2mo']:
-            try:
-                df = ticker.history(period=period)
-                
-                if not df.empty:
-                    close_price = df['Close'].iloc[-1]
-                    print(f"   ✅ Got {len(df)} days, Close=Rp {close_price:,.0f}")
-                    
-                    if len(df) >= 20:
-                        return df
-                    elif len(df) >= 5:
-                        return extend_historical_data(df, 60)
-                
-            except:
+                print(f"   ⚠️  Period {period} failed: {str(e)[:40]}")
+                time.sleep(1)
                 continue
         
-        print(f"   ❌ No data for {symbol}")
+        print(f"   ❌ All periods failed for {symbol}")
         
     except Exception as e:
-        print(f"   ❌ Error: {str(e)[:50]}")
+        print(f"   ❌ Yahoo Finance error: {str(e)[:60]}")
     
-    print(f"   🔄 Mock data")
+    # Fallback to mock data
+    print(f"   🔄 Using mock data")
     return generate_mock_data_idx(symbol)
 
 
