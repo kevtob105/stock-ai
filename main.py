@@ -110,7 +110,9 @@ app = FastAPI(title="AI Stock Trading API", version="1.0.0")
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://stock-ai-five.vercel.app"],  # Change to your frontend URL in production
+    allow_origins=["https://stock-ai-five.vercel.app",
+                   "http://localhost:3000",
+                   "*"],  # Change to your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
