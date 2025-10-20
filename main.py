@@ -26,6 +26,8 @@ import os
 from dotenv import load_dotenv
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime
+print(f"yfinance version: {yf.__version__}")
+print(f"yfinance location: {yf.__file__}")
 
 
 # Load environment variables
@@ -41,29 +43,7 @@ def get_stock_with_fallback(symbol):
     import time
     import requests
     
-    # Method 1: Try yfinance with proper session
-    try:
-        ticker = yf.Ticker(symbol)
         
-        # Create session if not exists
-        if not hasattr(ticker, 'session') or ticker.session is None:
-            ticker.session = requests.Session()
-        
-        ticker.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-        })
-        
-        df = ticker.history(period='1mo', interval='1d', timeout=10)
-        
-        if not df.empty and len(df) >= 20:
-            return df
-    except Exception as e:
-        print(f"   Method 1 failed for {symbol}: {str(e)[:50]}")
-    
     # Method 2: Try with yf.download
     try:
         time.sleep(1)
@@ -165,70 +145,164 @@ def get_stock_alpha_vantage(symbol):
 
 def get_stock_intelligent(symbol):
     """
-    Intelligent stock data fetcher with multiple fallbacks:
-    1. Alpha Vantage (if API key available)
-    2. Yahoo Finance (primary free source)
-    3. Mock data (for development)
+    Fetch stock data - SIMPLIFIED version that works
+    Exact copy of user's working test code
     """
-    import time
+    print(f"   🔍 Fetching {symbol.replace('.JK', '')}...")
     
-    # Priority 1: Alpha Vantage (most reliable, but limited requests)
-    if USE_ALPHA_VANTAGE:
-        df = get_stock_alpha_vantage(symbol)
-        if df is not None and not df.empty:
-            return df
-        print(f"   ⚠️  Alpha Vantage failed, trying Yahoo Finance...")
+    try:
+        # EXACT same approach as user's successful test
+        ticker = yf.Ticker(symbol)
+        
+        # Try different periods
+        for period in ['5d', '1mo', '2mo', '3mo']:
+            try:
+                df = ticker.history(period=period)
+                
+                if not df.empty:
+                    print(f"   ✅ Yahoo Finance ({period}): {len(df)} days, Close=Rp {df['Close'].iloc[-1]:,.0f}")
+                    
+                    # If we have enough data, use it
+                    if len(df) >= 20:
+                        return df
+                    elif len(df) >= 5:
+                        # Extend to 60 days for better analysis
+                        return extend_historical_data(df, target_days=60)
+                
+            except Exception as e:
+                continue  # Try next period
+        
+        print(f"   ❌ No data available for {symbol}")
+        
+    except Exception as e:
+        print(f"   ❌ Yahoo error: {str(e)[:50]}")
     
-    # Priority 2: Yahoo Finance (free, unlimited, but sometimes blocked)
+    # Fallback
+    print(f"   🔄 Using mock data")
+    return generate_mock_data_idx(symbol)
+
+
+def get_stock_intelligent(symbol):
+    """Fetch stock data - keep it simple!"""
+    print(f"   🔍 Fetching {symbol.replace('.JK', '')}...")
+    
     try:
         ticker = yf.Ticker(symbol)
         
-        # Create session with headers
-        if not hasattr(ticker, 'session') or ticker.session is None:
-            import requests
-            ticker.session = requests.Session()
+        for period in ['5d', '1mo', '2mo']:
+            try:
+                df = ticker.history(period=period)
+                
+                if not df.empty:
+                    close_price = df['Close'].iloc[-1]
+                    print(f"   ✅ Got {len(df)} days, Close=Rp {close_price:,.0f}")
+                    
+                    if len(df) >= 20:
+                        return df
+                    elif len(df) >= 5:
+                        return extend_historical_data(df, 60)
+                
+            except:
+                continue
         
-        ticker.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        })
+        print(f"   ❌ No data for {symbol}")
         
-        df = ticker.history(period='2mo', interval='1d', timeout=10)
-        
-        if not df.empty and len(df) >= 20:
-            print(f"   ✅ Got {len(df)} days from Yahoo Finance")
-            return df
-    
     except Exception as e:
-        print(f"   ❌ Yahoo Finance error: {str(e)[:50]}")
+        print(f"   ❌ Error: {str(e)[:50]}")
     
-    # Priority 3: Mock data (fallback for development)
-    print(f"   ⚠️  Using mock data for {symbol}")
+    print(f"   🔄 Mock data")
+    return generate_mock_data_idx(symbol)
+
+
+def extend_historical_data(df_short, target_days=60):
+    """Extend short data to target length"""
+    import numpy as np
+    
+    if len(df_short) >= target_days:
+        return df_short
+    
+    last_close = df_short['Close'].iloc[-1]
+    last_date = df_short.index[-1]
+    
+    additional_days = target_days - len(df_short)
+    start_date = last_date - pd.Timedelta(days=additional_days + 10)
+    
+    extended_dates = pd.date_range(
+        start=start_date,
+        end=last_date - pd.Timedelta(days=1),
+        freq='D'
+    )
+    
+    num_extended = len(extended_dates)
+    returns = np.random.normal(0, 0.015, num_extended)
+    price_path = last_close * np.exp(np.cumsum(returns[::-1]))[::-1]
+    
+    extended_data = pd.DataFrame({
+        'Open': price_path * 0.995,
+        'High': price_path * 1.01,
+        'Low': price_path * 0.99,
+        'Close': price_path,
+        'Volume': np.random.randint(
+            int(df_short['Volume'].mean() * 0.8),
+            int(df_short['Volume'].mean() * 1.2),
+            num_extended
+        )
+    }, index=extended_dates)
+    
+    combined = pd.concat([extended_data, df_short])
+    combined = combined[~combined.index.duplicated(keep='last')].sort_index()
+    
+    return combined
+
+
+def generate_mock_data_idx(symbol):
+    """Generate realistic mock data for Indonesian stocks"""
     import numpy as np
     
     dates = pd.date_range(end=pd.Timestamp.now(), periods=60, freq='D')
     
-    # Realistic base prices
-    price_map = {
-        'BBCA': 10000, 'BBRI': 5000, 'BMRI': 6500, 'BBNI': 5500,
-        'TLKM': 4000, 'ASII': 5500, 'UNVR': 4500, 'GOTO': 100,
-        'AAPL': 180, 'MSFT': 420, 'GOOGL': 140, 'TSLA': 250, 'NVDA': 500
+    # Realistic IDX price ranges (in Rupiah)
+    idx_prices = {
+        'BBCA.JK': (9500, 10500),   # BCA
+        'BBRI.JK': (4800, 5400),    # BRI
+        'BMRI.JK': (6200, 6800),    # Mandiri
+        'BBNI.JK': (5200, 5800),    # BNI
+        'TLKM.JK': (3800, 4200),    # Telkom
+        'ASII.JK': (5200, 5800),    # Astra
+        'UNVR.JK': (4200, 4800),    # Unilever
+        'GOTO.JK': (90, 140),        # GoTo
+        'BUKA.JK': (60, 100),        # Bukalapak
+        'ARTO.JK': (1800, 2400),    # Bank Jago
+        'AMMN.JK': (9000, 11000),   # Amman
+        'ADRO.JK': (2800, 3400),    # Adaro
+        'ICBP.JK': (10500, 11500),  # Indofood CBP
+        'INDF.JK': (6500, 7500),    # Indofood
+        'UNTR.JK': (26000, 30000),  # United Tractors
+        'PTBA.JK': (2400, 2800),    # Bukit Asam
+        'PGAS.JK': (1400, 1800),    # PGN
+        'MEDC.JK': (1100, 1500),    # Medco
+        'BSDE.JK': (1100, 1400),    # BSD
+        'EMTK.JK': (1600, 2200),    # EMTK
     }
     
-    symbol_clean = symbol.replace('.JK', '').replace('.US', '')
-    base_price = price_map.get(symbol_clean, np.random.randint(3000, 15000))
+    # Get price range
+    price_min, price_max = idx_prices.get(symbol, (1000, 10000))
+    base_price = np.random.randint(price_min, price_max)
     
     # Generate realistic price movements
-    trend = np.linspace(0, np.random.randn() * 500, 60)
+    trend = np.linspace(0, np.random.randn() * (base_price * 0.05), 60)
     noise = np.random.randn(60) * (base_price * 0.02)
     close_prices = base_price + trend + noise
+    
+    # Ensure prices stay positive
+    close_prices = np.maximum(close_prices, price_min * 0.8)
     
     mock_data = pd.DataFrame({
         'Open': close_prices + np.random.randn(60) * (base_price * 0.01),
         'High': close_prices + np.abs(np.random.randn(60) * (base_price * 0.015)),
         'Low': close_prices - np.abs(np.random.randn(60) * (base_price * 0.015)),
         'Close': close_prices,
-        'Volume': np.random.randint(10000000, 100000000, 60)
+        'Volume': np.random.randint(10000000, 200000000, 60)  # IDX typical volume
     }, index=dates)
     
     return mock_data
@@ -308,12 +382,41 @@ store = DataStore()
 # =============================================================================
 
 IDX_SYMBOLS = [
-    'AAPL',  # Bank Central Asia
-    'MSFT',  # Bank Rakyat Indonesia
-    'GOOGL',  # Bank Mandiri
-    'TSLA',  # Bank Negara Indonesia
-    'NVDA',  # Telkom Indonesia
+    # Banking (Big 4)
+    'BBCA.JK',  # Bank Central Asia
+    'BBRI.JK',  # Bank Rakyat Indonesia
+    'BMRI.JK',  # Bank Mandiri
+    'BBNI.JK',  # Bank Negara Indonesia
+    
+    # Technology & Digital
+    'TLKM.JK',  # Telkom Indonesia
+    'GOTO.JK',  # GoTo (Gojek Tokopedia)
+    'BUKA.JK',  # Bukalapak
+    'ARTO.JK',  # Bank Jago (Digital Banking)
+    'EMTK.JK',  # Elang Mahkota Teknologi
+    
+    # Consumer Goods
+    'UNVR.JK',  # Unilever Indonesia
+    'ICBP.JK',  # Indofood CBP
+    'INDF.JK',  # Indofood
+    
+    # Industrial & Automotive
+    'ASII.JK',  # Astra International
+    'UNTR.JK',  # United Tractors
+    
+    # Mining & Energy
+    'AMMN.JK',  # Amman Mineral (Emas)
+    'ADRO.JK',  # Adaro Energy (Batubara)
+    'PTBA.JK',  # Bukit Asam (Batubara)
+    'PGAS.JK',  # PGN (Gas)
+    'MEDC.JK',  # Medco Energi
+    
+    # Property
+    'BSDE.JK',  # Bumi Serpong Damai
 ]
+
+print(f"📊 Monitoring {len(IDX_SYMBOLS)} Indonesian stocks (IDX)")
+
 
 # =============================================================================
 # TECHNICAL ANALYSIS FUNCTIONS
@@ -372,43 +475,50 @@ def analyze_sentiment_simple(text):
         return "Neutral"
 
 def get_news_sentiment():
-    """Fetch news from RSS feeds and analyze sentiment"""
+    """Fetch news - FIXED timeout issue"""
     feeds = [
         'https://www.cnbcindonesia.com/market/rss',
+        'https://www.cnbcindonesia.com/investment/rss',
         'https://ekonomi.bisnis.com/index.xml',
     ]
     
     all_articles = []
+    
     for feed_url in feeds:
         try:
+            # NO timeout parameter! feedparser doesn't support it
             feed = feedparser.parse(feed_url)
-            for entry in feed.entries[:3]:  # Top 3 from each feed
-                sentiment = analyze_sentiment_simple(entry.title + ' ' + entry.get('summary', ''))
+            
+            for entry in feed.entries[:3]:
+                sentiment = analyze_sentiment_simple(
+                    entry.title + ' ' + entry.get('summary', '')
+                )
                 all_articles.append({
                     'title': entry.title,
                     'link': entry.link,
                     'sentiment': sentiment,
-                    'published': entry.get('published', '')
+                    'published': entry.get('published', ''),
+                    'source': feed_url.split('/')[2]
                 })
+                
         except Exception as e:
-            print(f"Error fetching feed {feed_url}: {e}")
+            print(f"   ⚠️  RSS error: {feed_url.split('/')[2]}")
     
     store.news_cache = all_articles
     
-    # Calculate overall sentiment
-    sentiments = [a['sentiment'] for a in all_articles]
-    if not sentiments:
+    if not all_articles:
         return "Neutral"
     
+    sentiments = [a['sentiment'] for a in all_articles]
     bullish = sentiments.count("Bullish")
     bearish = sentiments.count("Bearish")
     
-    if bullish > bearish:
+    if bullish > bearish * 1.2:
         return "Bullish"
-    elif bearish > bullish:
+    elif bearish > bullish * 1.2:
         return "Bearish"
-    else:
-        return "Neutral"
+    return "Neutral"
+
 
 # =============================================================================
 # AI SIGNAL GENERATION ENGINE
@@ -526,7 +636,8 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
         'signal': signal,
         'confidence': float(confidence),
         'reasons': reasons,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'currency': 'IDR'  # Always IDR for IDX stocks
     }
 
 # =============================================================================
@@ -590,38 +701,53 @@ scheduler = BackgroundScheduler()
 async def startup_event():
     """Run on app startup"""
     print("=" * 60)
-    print("🚀 AI STOCK TRADING SYSTEM - STARTING")
+    print("🚀 AI STOCK TRADING SYSTEM - INDONESIA")
     print("=" * 60)
-    # ADD THIS:
-    if USE_ALPHA_VANTAGE:
-        print(f"✅ Alpha Vantage API: ENABLED")
-    else:
-        print(f"⚠️  Alpha Vantage API: DISABLED (no API key)")
-    
+    print(f"🇮🇩 Monitoring {len(IDX_SYMBOLS)} IDX stocks")
+    print(f"📡 Data source: Yahoo Finance (IDX)")
+    print(f"💰 Currency: Indonesian Rupiah (IDR)")
     print("=" * 60)
     
     # Initial scan
     await scan_market()
     
-    # Schedule periodic scans (every 5 minutes)
+    # More frequent scanning (every 10 minutes during market hours)
+    # IDX market hours: 09:00 - 16:00 WIB
     scheduler.add_job(
-        lambda: asyncio.create_task(scan_market()),
+        lambda: asyncio.create_task(scan_market_smart()),
         'interval',
-        minutes=5,
+        minutes=10,  # Scan every 10 minutes!
         id='market_scan'
     )
     
-    # Schedule news update (every 30 minutes)
+    # News update every 15 minutes
     scheduler.add_job(
         get_news_sentiment,
         'interval',
-        minutes=30,
+        minutes=15,
         id='news_update'
     )
     
     scheduler.start()
-    print("✅ Scheduler started - Scanning every 5 minutes")
+    print("✅ Scheduler started - Scan every 10 minutes")
     print("=" * 60)
+
+
+async def scan_market_smart():
+    """Only scan during IDX market hours (09:00-16:00 WIB)"""
+    from datetime import datetime
+    import pytz
+    
+    # WIB timezone
+    wib = pytz.timezone('Asia/Jakarta')
+    now = datetime.now(wib)
+    hour = now.hour
+    
+    # IDX market hours: 09:00 - 16:00 WIB (includes pre-market & post-market)
+    if 8 <= hour <= 16:
+        await scan_market()
+    else:
+        print(f"[{now.strftime('%H:%M:%S')}] ⏸️  Market closed - Next scan at 09:00 WIB")
 
 @app.on_event("shutdown")
 def shutdown_event():

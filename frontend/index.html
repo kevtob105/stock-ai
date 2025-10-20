@@ -107,7 +107,9 @@
                 tbody.innerHTML = stocks.map(stock => `
                     <tr class="border-b border-gray-700 hover:bg-gray-700 transition">
                         <td class="py-3 px-2 font-bold">${stock.symbol}</td>
-                        <td class="py-3 px-2 text-right">${stock.price.toFixed(0)}</td>
+                        <td class="py-3 px-2 text-right">
+                            Rp ${stock.price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        </td>
                         <td class="py-3 px-2 text-right ${stock.change_percent >= 0 ? 'text-green-400' : 'text-red-400'}">
                             ${stock.change_percent >= 0 ? '+' : ''}${stock.change_percent.toFixed(2)}%
                         </td>
@@ -166,7 +168,8 @@
                             </div>
                         </div>
                         <div class="text-sm text-gray-300 mb-2">
-                            <span class="font-semibold">Price:</span> ${signal.price.toFixed(0)} | 
+                            <span class="font-semibold">Price:</span> 
+                            Rp ${signal.price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} | 
                             <span class="font-semibold">Confidence:</span> ${signal.confidence.toFixed(0)}%
                         </div>
                         <div class="text-xs text-gray-400">
