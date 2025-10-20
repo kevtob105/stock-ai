@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Stock Trading Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="container mx-auto p-6 max-w-7xl">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold mb-2">🤖 AI Stock Trading Dashboard</h1>
+            <p class="text-gray-400">Real-time Indonesian stock market signals</p>
+            <div class="mt-4">
+                <span id="status" class="px-3 py-1 bg-green-600 rounded-full text-sm">● Connecting...</span>
+                <span class="ml-4 text-gray-400 text-sm">Last update: <span id="lastUpdate">-</span></span>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <div class="text-gray-400 text-sm mb-1">Total Signals</div>
+                <div class="text-3xl font-bold" id="totalSignals">0</div>
+            </div>
+            <div class="bg-green-900 bg-opacity-30 p-6 rounded-lg border border-green-700">
+                <div class="text-green-400 text-sm mb-1">BUY Signals</div>
+                <div class="text-3xl font-bold text-green-400" id="buySignals">0</div>
+            </div>
+            <div class="bg-red-900 bg-opacity-30 p-6 rounded-lg border border-red-700">
+                <div class="text-red-400 text-sm mb-1">SELL Signals</div>
+                <div class="text-3xl font-bold text-red-400" id="sellSignals">0</div>
+            </div>
+            <div class="bg-blue-900 bg-opacity-30 p-6 rounded-lg border border-blue-700">
+                <div class="text-blue-400 text-sm mb-1">Stocks Monitored</div>
+                <div class="text-3xl font-bold text-blue-400" id="totalStocks">0</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Latest Signals -->
+            <div class="lg:col-span-1 bg-gray-800 rounded-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">🔔 Latest Signals</h2>
+                <div id="signalsList" class="space-y-3 max-h-[500px] overflow-y-auto">
+                    <div class="text-center text-gray-400 py-8">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Stock Table -->
+            <div class="lg:col-span-2 bg-gray-800 rounded-lg p-6">
+                <h2 class="text-2xl font-bold mb-4">📊 Market Scanner</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="border-b border-gray-700">
+                            <tr class="text-gray-400 text-left">
+                                <th class="py-3 px-2">Symbol</th>
+                                <th class="py-3 px-2 text-right">Price</th>
+                                <th class="py-3 px-2 text-right">Change</th>
+                                <th class="py-3 px-2 text-center">RSI</th>
+                                <th class="py-3 px-2 text-center">Signal</th>
+                                <th class="py-3 px-2 text-right">Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stocksTable">
+                            <tr>
+                                <td colspan="6" class="text-center py-8 text-gray-400">Loading stocks...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- News Section -->
+        <div class="mt-6 bg-gray-800 rounded-lg p-6">
+            <h2 class="text-2xl font-bold mb-4">📰 Market News & Sentiment</h2>
+            <div id="newsList" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="text-center text-gray-400 py-8">Loading news...</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-8 text-center text-sm text-gray-500">
+            <p>⚠️ Disclaimer: This is for educational purposes only. Not financial advice. Trade at your own risk.</p>
+        </div>
+    </div>
+
+    <script>
+        // IMPORTANT: Change this URL after deploying to Railway
+        const API_URL = 'http://localhost:8000';
+        
+        // Fetch stocks
+        async function loadStocks() {
+            try {
+                const response = await fetch(`${API_URL}/api/stocks`);
+                if (!response.ok) throw new Error('API not responding');
+                
+                const stocks = await response.json();
+                const tbody = document.getElementById('stocksTable');
+                
+                if (stocks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">No stocks yet. Wait for first scan...</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = stocks.map(stock => `
+                    <tr class="border-b border-gray-700 hover:bg-gray-700 transition">
+                        <td class="py-3 px-2 font-bold">${stock.symbol}</td>
+                        <td class="py-3 px-2 text-right">${stock.price.toFixed(0)}</td>
+                        <td class="py-3 px-2 text-right ${stock.change_percent >= 0 ? 'text-green-400' : 'text-red-400'}">
+                            ${stock.change_percent >= 0 ? '+' : ''}${stock.change_percent.toFixed(2)}%
+                        </td>
+                        <td class="py-3 px-2 text-center">
+                            <span class="${stock.rsi < 30 ? 'text-green-400 font-bold' : stock.rsi > 70 ? 'text-red-400 font-bold' : 'text-gray-400'}">
+                                ${stock.rsi.toFixed(0)}
+                            </span>
+                        </td>
+                        <td class="py-3 px-2 text-center">
+                            <span class="px-3 py-1 rounded-full text-xs font-bold ${
+                                stock.signal === 'BUY' ? 'bg-green-600' :
+                                stock.signal === 'SELL' ? 'bg-red-600' :
+                                'bg-gray-600'
+                            }">
+                                ${stock.signal}
+                            </span>
+                        </td>
+                        <td class="py-3 px-2 text-right font-semibold">${stock.confidence.toFixed(0)}%</td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('totalStocks').textContent = stocks.length;
+                document.getElementById('status').innerHTML = '● Live';
+                document.getElementById('status').className = 'px-3 py-1 bg-green-600 rounded-full text-sm';
+            } catch (error) {
+                console.error('Error loading stocks:', error);
+                document.getElementById('status').innerHTML = '● Offline';
+                document.getElementById('status').className = 'px-3 py-1 bg-red-600 rounded-full text-sm';
+            }
+        }
+
+        // Fetch signals
+        async function loadSignals() {
+            try {
+                const response = await fetch(`${API_URL}/api/signals?limit=10`);
+                const signals = await response.json();
+                
+                const container = document.getElementById('signalsList');
+                
+                if (signals.length === 0) {
+                    container.innerHTML = '<div class="text-center text-gray-400 py-8">No signals yet. Wait for strong BUY/SELL signals...</div>';
+                    return;
+                }
+
+                container.innerHTML = signals.map(signal => `
+                    <div class="p-4 rounded-lg border-l-4 ${
+                        signal.signal === 'BUY' ? 'bg-green-900 bg-opacity-20 border-green-500' :
+                        'bg-red-900 bg-opacity-20 border-red-500'
+                    }">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="font-bold text-xl">${signal.symbol}</div>
+                            <div class="px-3 py-1 rounded-full text-sm font-bold ${
+                                signal.signal === 'BUY' ? 'bg-green-600' : 'bg-red-600'
+                            }">
+                                ${signal.signal}
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-300 mb-2">
+                            <span class="font-semibold">Price:</span> ${signal.price.toFixed(0)} | 
+                            <span class="font-semibold">Confidence:</span> ${signal.confidence.toFixed(0)}%
+                        </div>
+                        <div class="text-xs text-gray-400">
+                            ${signal.reasons.slice(0, 2).join(' • ')}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-2">
+                            ${new Date(signal.timestamp).toLocaleString('id-ID')}
+                        </div>
+                    </div>
+                `).join('');
+
+                // Update stats
+                const buyCount = signals.filter(s => s.signal === 'BUY').length;
+                const sellCount = signals.filter(s => s.signal === 'SELL').length;
+                document.getElementById('totalSignals').textContent = signals.length;
+                document.getElementById('buySignals').textContent = buyCount;
+                document.getElementById('sellSignals').textContent = sellCount;
+            } catch (error) {
+                console.error('Error loading signals:', error);
+            }
+        }
+
+        // Fetch news
+        async function loadNews() {
+            try {
+                const response = await fetch(`${API_URL}/api/news`);
+                const data = await response.json();
+                
+                const container = document.getElementById('newsList');
+                
+                if (!data.articles || data.articles.length === 0) {
+                    container.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-8">No news available yet...</div>';
+                    return;
+                }
+
+                container.innerHTML = data.articles.slice(0, 6).map(article => `
+                    <div class="bg-gray-700 p-4 rounded-lg hover:bg-gray-600 transition">
+                        <div class="mb-2">
+                            <span class="px-2 py-1 rounded text-xs font-bold ${
+                                article.sentiment === 'Bullish' ? 'bg-green-600' :
+                                article.sentiment === 'Bearish' ? 'bg-red-600' :
+                                'bg-gray-600'
+                            }">
+                                ${article.sentiment}
+                            </span>
+                        </div>
+                        <h3 class="font-semibold mb-2 text-sm leading-tight line-clamp-3">
+                            ${article.title}
+                        </h3>
+                        <a href="${article.link}" target="_blank" 
+                           class="text-xs text-blue-400 hover:text-blue-300 hover:underline">
+                            Read more →
+                        </a>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading news:', error);
+            }
+        }
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = 
+                now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        // Load all data
+        async function loadAllData() {
+            await Promise.all([
+                loadStocks(),
+                loadSignals(),
+                loadNews()
+            ]);
+            updateTimestamp();
+        }
+
+        // Initial load
+        loadAllData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadAllData, 30000);
+        
+        // Update timestamp every second
+        setInterval(updateTimestamp, 1000);
+
+        console.log('✅ Dashboard loaded! Backend:', API_URL);
+    </script>
+</body>
+</html>
