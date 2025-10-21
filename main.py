@@ -638,7 +638,7 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     reasons = []
     
     # 1. RSI Analysis (Weight: 25 points)
-    if rsi < 30:
+    if rsi < 50:
         score += 25
         reasons.append(f"RSI Oversold ({rsi:.1f})")
     elif rsi > 70:
@@ -760,7 +760,7 @@ async def scan_market():
                 successful_scans += 1
                 
                 # Add to signals if strong signal
-                if result['signal'] in ['BUY', 'SELL'] and result['confidence'] >= 60:
+                if result['signal'] in ['BUY', 'SELL'] and result['confidence'] >= 40:
                     store.add_signal(result)
                     log_signal_to_file(result)
                     print(f"   🎯 {result['signal']} signal: {symbol_clean} (Confidence: {result['confidence']:.0f}%)")
