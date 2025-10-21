@@ -20,12 +20,21 @@ import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
 import feedparser
 import json
+from typing import Optional
+import csv
+from backtester import Backtester
+from pathlib import Path
 import asyncio
 from collections import deque
 import os
 from dotenv import load_dotenv
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime
+from telegram import Bot
+import asyncio
+
+TELEGRAM_TOKEN = "8247322040:AAEpGthXNLSnTPrWL8PbxrPJ_1hyWFHE0DA"  # Get from @BotFather
+CHAT_ID = "@IDXMind_bot"
 print(f"yfinance version: {yf.__version__}")
 print(f"yfinance location: {yf.__file__}")
 
@@ -37,6 +46,33 @@ load_dotenv()
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', '')
 USE_ALPHA_VANTAGE = bool(ALPHA_VANTAGE_API_KEY)
 # ADD THIS after all imports (around line 20)
+
+def log_signal_to_file(signal_data):
+    """Log signal to CSV for backtesting"""
+    log_file = Path('signals_history.csv')
+    
+    # Create file with headers if not exists
+    if not log_file.exists():
+        with open(log_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                'timestamp', 'symbol', 'signal', 'price', 
+                'rsi', 'confidence', 'reasons'
+            ])
+    
+    # Append signal
+    with open(log_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            signal_data['timestamp'],
+            signal_data['symbol'],
+            signal_data['signal'],
+            signal_data['price'],
+            signal_data['rsi'],
+            signal_data['confidence'],
+            '; '.join(signal_data['reasons'])
+        ])
+
 
 def get_stock_with_fallback(symbol):
     """Get stock data with fallback to alternative method"""
@@ -227,6 +263,28 @@ def extend_historical_data(df_short, target_days=60):
     
     return combined
 
+async def send_telegram_alert(symbol, signal, price, confidence, reasons):
+    bot = Bot(token=TELEGRAM_TOKEN)
+    
+    emoji = "🟢" if signal == "BUY" else "🔴"
+    message = f"""
+    {emoji} *{signal} SIGNAL: {symbol}*
+
+    Price: Rp {price:,.0f}
+    Confidence: {confidence:.0f}%
+    Reasons:
+    {chr(10).join(f"• {r}" for r in reasons)}
+
+    _AI Stock Trading System_
+    """
+    
+    await bot.send_message(
+        chat_id=CHAT_ID,
+        text=message,
+        parse_mode='Markdown'
+    )
+
+
 
 def generate_mock_data_idx(symbol):
     """Generate realistic mock data for Indonesian stocks"""
@@ -349,29 +407,37 @@ class DataStore:
         return list(self.stocks.values())
 
 store = DataStore()
-
 # =============================================================================
 # INDONESIAN STOCK SYMBOLS (IDX)
 # =============================================================================
 
 IDX_SYMBOLS = [
-    # Banking (Big 4)
-    'BBCA.JK',  # Bank Central Asia
-    'BBRI.JK',  # Bank Rakyat Indonesia
-    'BMRI.JK',  # Bank Mandiri
-    'BBNI.JK',  # Bank Negara Indonesia
     
     # Technology & Digital
     'TLKM.JK',  # Telkom Indonesia
-    'GOTO.JK',  # GoTo (Gojek Tokopedia)
-    'BUKA.JK',  # Bukalapak
-    'ARTO.JK',  # Bank Jago (Digital Banking)
+    'WIFI.JK',  # GoTo (Gojek Tokopedia)
     'EMTK.JK',  # Elang Mahkota Teknologi
     
-    # Consumer Goods
-    'UNVR.JK',  # Unilever Indonesia
-    'ICBP.JK',  # Indofood CBP
-    'INDF.JK',  # Indofood
+    # Pak PP
+    'CUAN.JK',  # Unilever Indonesia
+    'TPIA.JK',  # Indofood CBP
+    'BREN.JK',  # Indofood
+    'CDIA.JK',
+    'TOBA.JK',
+    'JATI.JK',
+    'MBMA.JK',
+    'KRYA.JK',
+    'PTRO.JK',
+    'TINS.JK',
+    'DATA.JK',
+    'BRPT.JK',
+    'BMTR.JK',
+    'DEWA.JK',
+    'ENRG.JK',
+    'BUVA.JK',
+    'INET.JK',
+
+
     
     # Industrial & Automotive
     'ASII.JK',  # Astra International
@@ -383,9 +449,24 @@ IDX_SYMBOLS = [
     'PTBA.JK',  # Bukit Asam (Batubara)
     'PGAS.JK',  # PGN (Gas)
     'MEDC.JK',  # Medco Energi
+    'EMTK.JK',
+    'BRMS.JK',
+    'HRTA.JK',
+    'ANTM.JK',
+    'PSAB.JK',
+    'AADI.JK',
+    'EMAS.JK',
+    'RAJA.JK',
+
+
     
     # Property
-    'BSDE.JK',  # Bumi Serpong Damai
+    'BKSL.JK',  # Bumi Serpong Damai
+    'ASRI.JK',
+    'PANI.JK',
+    'CTRA.JK',
+    'BSBK.JK',
+
 ]
 
 print(f"📊 Monitoring {len(IDX_SYMBOLS)} Indonesian stocks (IDX)")
@@ -612,7 +693,7 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     # Generate final signal
     confidence = min(abs(score), 100)
     
-    if score >= 40:
+    if score >= 20:
         signal = "BUY"
     elif score <= -40:
         signal = "SELL"
@@ -679,12 +760,29 @@ async def scan_market():
                 # Add to signals if strong signal
                 if result['signal'] in ['BUY', 'SELL'] and result['confidence'] >= 60:
                     store.add_signal(result)
+                    log_signal_to_file(result)
                     print(f"   🎯 {result['signal']} signal: {symbol_clean} (Confidence: {result['confidence']:.0f}%)")
+                    await send_telegram_alert(
+                        result['symbol'],
+                        result['signal'],
+                        result['price'],
+                        result['confidence'],
+                        result['reasons'])
         
         except Exception as e:
             print(f"   ❌ Error processing {symbol}: {str(e)[:100]}")
     
     print(f"   ✅ Scan complete - {successful_scans}/{len(IDX_SYMBOLS)} stocks updated\n")
+
+# Add API endpoint
+@app.get("/api/history")
+def get_signal_history():
+    import pandas as pd
+    try:
+        df = pd.read_csv('signals_history.csv')
+        return df.to_dict('records')
+    except:
+        return []
 
 # =============================================================================
 # SCHEDULER SETUP
@@ -711,7 +809,7 @@ async def startup_event():
     scheduler.add_job(
         lambda: asyncio.create_task(scan_market_smart()),
         'interval',
-        minutes=10,  # Scan every 10 minutes!
+        minutes=5,  # Scan every 10 minutes!
         id='market_scan'
     )
     
@@ -846,6 +944,378 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"❌ WebSocket error: {e}")
     finally:
         print("🔌 WebSocket client disconnected")
+
+class PerformanceTracker:
+    def __init__(self):
+        self.results_file = Path('backtest_results.json')
+        self.trades_file = Path('backtest_trades.csv')
+    
+    def get_latest_backtest(self) -> Optional[dict]:
+        """Get latest backtest results"""
+        if not self.results_file.exists():
+            return None
+        
+        try:
+            with open(self.results_file, 'r') as f:
+                return json.load(f)
+        except:
+            return None
+    
+    def get_performance_summary(self) -> dict:
+        """Get quick performance summary"""
+        backtest = self.get_latest_backtest()
+        
+        if not backtest:
+            return {
+                "status": "no_data",
+                "message": "Run backtest first"
+            }
+        
+        report = backtest.get('report', {})
+        
+        return {
+            "status": "available",
+            "last_update": backtest.get('timestamp', 'Unknown'),
+            "metrics": {
+                "win_rate": report.get('win_rate', 0),
+                "total_return_pct": report.get('total_return_pct', 0),
+                "profit_factor": report.get('profit_factor', 0),
+                "max_drawdown": report.get('max_drawdown', 0),
+                "total_trades": report.get('total_trades', 0)
+            },
+            "assessment": self._assess_performance(report)
+        }
+    
+    def _assess_performance(self, report: dict) -> str:
+        """Assess overall system performance"""
+        win_rate = report.get('win_rate', 0)
+        profit_factor = report.get('profit_factor', 0)
+        
+        if win_rate >= 60 and profit_factor >= 1.5:
+            return "Excellent"
+        elif win_rate >= 50 and profit_factor >= 1.2:
+            return "Good"
+        elif win_rate >= 45:
+            return "Moderate"
+        else:
+            return "Needs Improvement"
+    
+    def compare_signal_types(self) -> dict:
+        """Compare BUY vs SELL signal performance"""
+        backtest = self.get_latest_backtest()
+        
+        if not backtest:
+            return {}
+        
+        report = backtest.get('report', {})
+        
+        return {
+            "buy_signals": report.get('buy_signals', {}),
+            "sell_signals": report.get('sell_signals', {}),
+            "comparison": {
+                "better_signal": "BUY" if report.get('buy_signals', {}).get('win_rate', 0) > 
+                                         report.get('sell_signals', {}).get('win_rate', 0) else "SELL"
+            }
+        }
+
+# Initialize tracker
+performance_tracker = PerformanceTracker()
+
+
+# =============================================================================
+# API ENDPOINTS - Add these routes
+# =============================================================================
+
+@app.get("/api/backtest/summary")
+def get_backtest_summary():
+    """
+    Get backtesting performance summary
+    
+    Returns key metrics without full details
+    """
+    return performance_tracker.get_performance_summary()
+
+
+@app.get("/api/backtest/full")
+def get_full_backtest():
+    """
+    Get complete backtest results
+    
+    Returns all trades and detailed analysis
+    """
+    backtest = performance_tracker.get_latest_backtest()
+    
+    if not backtest:
+        raise HTTPException(
+            status_code=404, 
+            detail="No backtest results found. Run backtest.py first"
+        )
+    
+    return backtest
+
+
+@app.get("/api/backtest/trades")
+def get_backtest_trades(limit: int = 50):
+    """
+    Get individual backtest trades
+    
+    Args:
+        limit: Number of trades to return (default 50)
+    """
+    if not performance_tracker.trades_file.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="No trades file found"
+        )
+    
+    try:
+        trades_df = pd.read_csv(performance_tracker.trades_file)
+        trades = trades_df.head(limit).to_dict('records')
+        
+        return {
+            "total_trades": len(trades_df),
+            "returned": len(trades),
+            "trades": trades
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/backtest/comparison")
+def get_signal_comparison():
+    """
+    Compare BUY vs SELL signal performance
+    """
+    comparison = performance_tracker.compare_signal_types()
+    
+    if not comparison:
+        raise HTTPException(
+            status_code=404,
+            detail="No comparison data available"
+        )
+    
+    return comparison
+
+
+@app.get("/api/backtest/metrics")
+def get_key_metrics():
+    """
+    Get only key performance metrics
+    
+    Quick endpoint for dashboard widgets
+    """
+    summary = performance_tracker.get_performance_summary()
+    
+    if summary['status'] == 'no_data':
+        return {
+            "win_rate": 0,
+            "profit_factor": 0,
+            "total_return": 0,
+            "assessment": "No Data"
+        }
+    
+    metrics = summary['metrics']
+    
+    return {
+        "win_rate": f"{metrics['win_rate']:.1f}%",
+        "profit_factor": f"{metrics['profit_factor']:.2f}",
+        "total_return": f"{metrics['total_return_pct']:+.2f}%",
+        "max_drawdown": f"{metrics['max_drawdown']:.2f}%",
+        "total_trades": metrics['total_trades'],
+        "assessment": summary['assessment']
+    }
+
+
+@app.post("/api/backtest/run")
+async def trigger_backtest(
+    hold_days: int = 3,
+    max_signals: int = 50
+):
+    """
+    Trigger backtesting (runs in background)
+    
+    Args:
+        hold_days: Days to hold each position
+        max_signals: Maximum signals to test
+    
+    Note: This is a simplified version. 
+    For production, use Celery or similar task queue
+    """
+    import subprocess
+    
+    try:
+        # Run backtest in background
+        subprocess.Popen([
+            'python', 
+            'backtest.py',
+            '--hold_days', str(hold_days),
+            '--max_signals', str(max_signals)
+        ])
+        
+        return {
+            "status": "started",
+            "message": f"Backtest started with hold_days={hold_days}, max_signals={max_signals}",
+            "note": "Check /api/backtest/summary for results"
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start backtest: {str(e)}"
+        )
+
+
+@app.get("/api/performance/live")
+async def get_live_performance():
+    """
+    Calculate live performance based on recent signals
+    
+    This tracks how recent signals are performing in real-time
+    """
+    signals_file = Path('signals_history.csv')
+    
+    if not signals_file.exists():
+        return {
+            "status": "no_signals",
+            "message": "No signals generated yet"
+        }
+    
+    try:
+        # Read recent signals (last 10)
+        df = pd.read_csv(signals_file)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp', ascending=False)
+        recent_signals = df.head(10)
+        
+        live_results = []
+        
+        for idx, signal in recent_signals.iterrows():
+            symbol = signal['symbol']
+            entry_price = signal['price']
+            signal_type = signal['signal']
+            
+            # Get current price
+            try:
+                ticker = yf.Ticker(f"{symbol}.JK")
+                current_data = ticker.history(period='1d')
+                
+                if not current_data.empty:
+                    current_price = current_data['Close'].iloc[-1]
+                    
+                    # Calculate unrealized P&L
+                    if signal_type == 'BUY':
+                        pnl_pct = (current_price - entry_price) / entry_price * 100
+                    else:
+                        pnl_pct = (entry_price - current_price) / entry_price * 100
+                    
+                    live_results.append({
+                        'symbol': symbol,
+                        'signal': signal_type,
+                        'entry_price': entry_price,
+                        'current_price': current_price,
+                        'pnl_pct': pnl_pct,
+                        'status': 'winning' if pnl_pct > 0 else 'losing',
+                        'timestamp': signal['timestamp']
+                    })
+            except:
+                continue
+        
+        if not live_results:
+            return {
+                "status": "no_live_data",
+                "message": "Cannot fetch current prices"
+            }
+        
+        # Calculate summary
+        winning = sum(1 for r in live_results if r['status'] == 'winning')
+        total = len(live_results)
+        live_win_rate = (winning / total * 100) if total > 0 else 0
+        avg_pnl = sum(r['pnl_pct'] for r in live_results) / total if total > 0 else 0
+        
+        return {
+            "status": "live",
+            "summary": {
+                "total_positions": total,
+                "winning": winning,
+                "losing": total - winning,
+                "live_win_rate": f"{live_win_rate:.1f}%",
+                "avg_unrealized_pnl": f"{avg_pnl:+.2f}%"
+            },
+            "positions": live_results
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error calculating live performance: {str(e)}"
+        )
+
+
+# =============================================================================
+# ENHANCED STATS ENDPOINT - Update existing /api/stats
+# =============================================================================
+
+@app.get("/api/stats/enhanced")
+def get_enhanced_stats():
+    """
+    Enhanced statistics including backtest performance
+    """
+    signals = store.get_signals()
+    buy_signals = [s for s in signals if s['signal'] == 'BUY']
+    sell_signals = [s for s in signals if s['signal'] == 'SELL']
+    
+    # Get backtest performance
+    backtest_summary = performance_tracker.get_performance_summary()
+    
+    return {
+        "live": {
+            "total_stocks": len(store.get_all_stocks()),
+            "total_signals": len(signals),
+            "buy_signals": len(buy_signals),
+            "sell_signals": len(sell_signals),
+            "news_articles": len(store.news_cache),
+            "last_scan": signals[0]['timestamp'] if signals else None
+        },
+        "backtest": backtest_summary,
+        "system_status": "Running",
+        "market_hours": "09:00 - 16:00 WIB"
+    }
+
+@app.post("/api/backtest")
+async def run_backtest(
+    symbol: str,
+    start_date: str = "2024-01-01",
+    end_date: str = "2025-10-20",
+    min_confidence: float = 40,
+    initial_capital: int = 100_000_000
+):
+    """
+    Run backtest on historical data
+    
+    Example:
+    POST /api/backtest?symbol=BBCA&start_date=2024-01-01
+    """
+    try:
+        # Add .JK if not present
+        if not symbol.endswith('.JK'):
+            symbol = f"{symbol}.JK"
+        
+        # Run backtest
+        bt = Backtester(initial_capital=initial_capital)
+        results = bt.run_backtest(symbol, start_date, end_date, min_confidence)
+        
+        return results
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/backtest/symbols")
+def get_backtest_symbols():
+    """Get list of symbols available for backtesting"""
+    return {
+        "symbols": [s.replace('.JK', '') for s in IDX_SYMBOLS],
+        "description": "Available symbols for backtesting"
+    }
 
 # =============================================================================
 # RUN SERVER
