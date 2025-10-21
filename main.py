@@ -22,7 +22,6 @@ import feedparser
 import json
 from typing import Optional
 import csv
-from backtester import Backtester
 from pathlib import Path
 import asyncio
 from collections import deque
@@ -30,7 +29,6 @@ import os
 from dotenv import load_dotenv
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime
-from telegram import Bot
 import asyncio
 
 TELEGRAM_TOKEN = "8247322040:AAEpGthXNLSnTPrWL8PbxrPJ_1hyWFHE0DA"  # Get from @BotFather
@@ -412,10 +410,14 @@ store = DataStore()
 # =============================================================================
 
 IDX_SYMBOLS = [
+    # Banking (Big 4)
+    'BBCA.JK',  # Bank Central Asia
+    'BBRI.JK',  # Bank Rakyat Indonesia
     
     # Technology & Digital
     'TLKM.JK',  # Telkom Indonesia
     'WIFI.JK',  # GoTo (Gojek Tokopedia)
+    'BUKA.JK',  # Bukalapak
     'EMTK.JK',  # Elang Mahkota Teknologi
     
     # Pak PP
@@ -693,7 +695,7 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     # Generate final signal
     confidence = min(abs(score), 100)
     
-    if score >= 20:
+    if score >= 40:
         signal = "BUY"
     elif score <= -40:
         signal = "SELL"
@@ -809,7 +811,7 @@ async def startup_event():
     scheduler.add_job(
         lambda: asyncio.create_task(scan_market_smart()),
         'interval',
-        minutes=5,  # Scan every 10 minutes!
+        minutes=10,  # Scan every 10 minutes!
         id='market_scan'
     )
     
@@ -1279,42 +1281,6 @@ def get_enhanced_stats():
         "backtest": backtest_summary,
         "system_status": "Running",
         "market_hours": "09:00 - 16:00 WIB"
-    }
-
-@app.post("/api/backtest")
-async def run_backtest(
-    symbol: str,
-    start_date: str = "2024-01-01",
-    end_date: str = "2025-10-20",
-    min_confidence: float = 40,
-    initial_capital: int = 100_000_000
-):
-    """
-    Run backtest on historical data
-    
-    Example:
-    POST /api/backtest?symbol=BBCA&start_date=2024-01-01
-    """
-    try:
-        # Add .JK if not present
-        if not symbol.endswith('.JK'):
-            symbol = f"{symbol}.JK"
-        
-        # Run backtest
-        bt = Backtester(initial_capital=initial_capital)
-        results = bt.run_backtest(symbol, start_date, end_date, min_confidence)
-        
-        return results
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/api/backtest/symbols")
-def get_backtest_symbols():
-    """Get list of symbols available for backtesting"""
-    return {
-        "symbols": [s.replace('.JK', '') for s in IDX_SYMBOLS],
-        "description": "Available symbols for backtesting"
     }
 
 # =============================================================================
