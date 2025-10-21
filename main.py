@@ -828,21 +828,34 @@ async def startup_event():
     print("=" * 60)
 
 
-async def scan_market_smart():
-    """Only scan during IDX market hours (09:00-16:00 WIB)"""
-    from datetime import datetime
+async def scan_market_smart():  
     import pytz
+    from datetime import datetime
+    try:
+        # CRITICAL: Convert UTC to WIB properly
+        wib = pytz.timezone('Asia/Jakarta')
+        utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
+        now_wib = utc_now.astimezone(wib)
+        
+        hour = now_wib.hour
+        
+        print(f"\n🕐 Time Check:")
+        print(f"   UTC: {utc_now.strftime('%H:%M:%S')}")
+        print(f"   WIB: {now_wib.strftime('%H:%M:%S')}")
+        print(f"   Hour: {hour}")
+        
+        # IDX market hours: 09:00 - 16:00 WIB
+        if 8 <= hour <= 16:
+            print(f"   ✅ Market OPEN - Scanning...")
+            await scan_market()
+        else:
+            print(f"   ⏸️  Market CLOSED (Hour: {hour}:00 WIB)")
     
-    # WIB timezone
-    wib = pytz.timezone('Asia/Jakarta')
-    now = datetime.now(wib)
-    hour = now.hour
-    
-    # IDX market hours: 09:00 - 16:00 WIB (includes pre-market & post-market)
-    if 8 <= hour <= 16:
+    except Exception as e:
+        print(f"   ❌ Timezone error: {str(e)}")
+        # If timezone fails, scan anyway (for debugging)
+        print(f"   ⚠️  Scanning anyway due to error...")
         await scan_market()
-    else:
-        print(f"[{now.strftime('%H:%M:%S')}] ⏸️  Market closed - Next scan at 09:00 WIB")
 
 @app.on_event("shutdown")
 def shutdown_event():
@@ -1283,15 +1296,68 @@ def get_enhanced_stats():
         "market_hours": "09:00 - 16:00 WIB"
     }
 
+@app.get("/api/timezone")
+def check_timezone():
+    """Check timezone configuration"""
+    import pytz
+    import os
+    
+    try:
+        wib = pytz.timezone('Asia/Jakarta')
+        utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
+        now_wib = utc_now.astimezone(wib)
+        
+        hour_wib = now_wib.hour
+        market_open = 9 <= hour_wib <= 16
+        
+        return {
+            "status": "ok",
+            "utc_time": utc_now.strftime('%Y-%m-%d %H:%M:%S UTC'),
+            "wib_time": now_wib.strftime('%Y-%m-%d %H:%M:%S WIB'),
+            "wib_hour": hour_wib,
+            "market_hours": "09:00 - 16:00 WIB",
+            "market_open": market_open,
+            "environment": os.getenv('ENVIRONMENT', 'development')
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+@app.post("/api/force-scan")
+async def force_scan():
+    """Force scan regardless of market hours"""
+    try:
+        await scan_market()
+        
+        return {
+            "status": "success",
+            "message": "Force scan completed",
+            "stocks_updated": len(store.get_all_stocks()),
+            "signals_generated": len(store.get_signals())
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
 # =============================================================================
 # RUN SERVER
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
+    import os
+    
+    # Railway provides PORT environment variable
+    port = int(os.getenv("PORT", 8000))
+    
+    print(f"\n🚀 Starting server on port {port}")
+    
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True
+        port=port,
+        reload=False  # Disable reload in production
     )
