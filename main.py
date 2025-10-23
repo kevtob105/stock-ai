@@ -459,6 +459,14 @@ IDX_SYMBOLS = [
     'AADI.JK',
     'EMAS.JK',
     'RAJA.JK',
+    'RATU.JK',
+    'FUTR.JK',
+    'JARR.JK',
+    'BUMI.JK',
+    'SULI.JK',
+    'ASLC.JK',
+    'BSBK.JK',
+    'PPRE.JK',
 
 
     
@@ -597,7 +605,81 @@ def get_news_sentiment():
         return "Bearish"
     return "Neutral"
 
+def calculate_bollinger_bands(prices, period=20, std_dev=2):
+    """
+    Calculate Bollinger Bands
+    
+    Args:
+        prices: Array of closing prices
+        period: SMA period (default 20)
+        std_dev: Standard deviation multiplier (default 2)
+    
+    Returns:
+        upper_band, middle_band, lower_band, bandwidth
+    """
+    if len(prices) < period:
+        return None, None, None, None
+    
+    df = pd.Series(prices)
+    
+    # Middle band (20-day SMA)
+    middle_band = df.rolling(window=period).mean().iloc[-1]
+    
+    # Standard deviation
+    std = df.rolling(window=period).std().iloc[-1]
+    
+    # Upper and lower bands
+    upper_band = middle_band + (std_dev * std)
+    lower_band = middle_band - (std_dev * std)
+    
+    # Bandwidth (indicator of volatility)
+    bandwidth = (upper_band - lower_band) / middle_band * 100
+    
+    return upper_band, middle_band, lower_band, bandwidth
 
+
+def analyze_bollinger_bands(current_price, upper_band, middle_band, lower_band, bandwidth):
+    """
+    Analyze Bollinger Bands for trading signals
+    
+    Returns:
+        score: Points to add to signal score
+        reason: Description of the signal
+    """
+    score = 0
+    reasons = []
+    
+    # Calculate position relative to bands
+    if upper_band and lower_band:
+        band_range = upper_band - lower_band
+        position = (current_price - lower_band) / band_range * 100
+        
+        # Price near lower band (oversold)
+        if position < 10:
+            score += 25
+            reasons.append(f"Near Lower BB ({position:.1f}%)")
+        elif position < 20:
+            score += 15
+            reasons.append(f"Below BB Middle ({position:.1f}%)")
+        
+        # Price near upper band (overbought)
+        elif position > 90:
+            score -= 25
+            reasons.append(f"Near Upper BB ({position:.1f}%)")
+        elif position > 80:
+            score -= 15
+            reasons.append(f"Above BB Middle ({position:.1f}%)")
+        
+        # Bollinger Squeeze (low volatility → breakout coming)
+        if bandwidth < 5:
+            score += 10
+            reasons.append("BB Squeeze (Breakout Ready)")
+        
+        # Bollinger expansion (high volatility)
+        elif bandwidth > 15:
+            reasons.append("High Volatility")
+    
+    return score, reasons
 # =============================================================================
 # AI SIGNAL GENERATION ENGINE
 # =============================================================================
@@ -628,7 +710,7 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     rsi = calculate_rsi(prices)
     macd_value, signal_value = calculate_macd(prices)
     ma20, ma50 = calculate_moving_averages(prices)
-    
+    upper_bb, middle_bb, lower_bb, bb_bandwidth = calculate_bollinger_bands(prices)
     avg_volume = np.mean(volumes[-20:])
     current_volume = volumes[-1]
     volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
@@ -639,35 +721,42 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     
     # 1. RSI Analysis (Weight: 25 points)
     if rsi < 50:
-        score += 25
+        score += 20
         reasons.append(f"RSI Oversold ({rsi:.1f})")
     elif rsi > 70:
-        score -= 25
+        score -= 20
         reasons.append(f"RSI Overbought ({rsi:.1f})")
     elif 30 <= rsi <= 45:
-        score += 10
+        score += 8
         reasons.append(f"RSI Moderate Buy ({rsi:.1f})")
     elif 55 <= rsi <= 70:
-        score -= 10
+        score -= 8
         reasons.append(f"RSI Moderate Sell ({rsi:.1f})")
     
     # 2. MACD Analysis (Weight: 20 points)
     macd_diff = macd_value - signal_value
     if macd_diff > 0:
-        score += 20
+        score += 15
         reasons.append("MACD Bullish Cross")
     else:
-        score -= 20
+        score -= 15
         reasons.append("MACD Bearish Cross")
     
     # 3. Moving Average Analysis (Weight: 20 points)
     if current_price > ma20 and ma20 > ma50:
-        score += 20
+        score += 15
         reasons.append("Golden Cross (MA20 > MA50)")
     elif current_price < ma20 and ma20 < ma50:
-        score -= 20
+        score -= 15
         reasons.append("Death Cross (MA20 < MA50)")
-    
+        
+    if upper_bb and lower_bb:
+        bb_score, bb_reasons = analyze_bollinger_bands(
+            current_price, upper_bb, middle_bb, lower_bb, bb_bandwidth
+        )
+        score += bb_score
+        reasons.extend(bb_reasons)
+
     # 4. Sentiment Analysis (Weight: 15 points)
     if overall_sentiment == "Bullish":
         score += 15
@@ -678,7 +767,7 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     
     # 5. Volume Analysis (Weight: 10 points)
     if volume_ratio > 1.5:
-        score += 10
+        score += 8  
         reasons.append(f"High Volume ({volume_ratio:.1f}x avg)")
     elif volume_ratio < 0.5:
         score -= 5
@@ -686,10 +775,10 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     
     # 6. Price Momentum (Weight: 10 points)
     if price_change_pct > 3:
-        score += 10
+        score += 5
         reasons.append(f"Strong Uptrend (+{price_change_pct:.1f}%)")
     elif price_change_pct < -3:
-        score -= 10
+        score -= 5
         reasons.append(f"Strong Downtrend ({price_change_pct:.1f}%)")
     
     # Generate final signal
@@ -811,7 +900,7 @@ async def startup_event():
     scheduler.add_job(
         lambda: asyncio.create_task(scan_market_smart()),
         'interval',
-        minutes=10,  # Scan every 10 minutes!
+        minutes=5,  # Scan every 10 minutes!
         id='market_scan'
     )
     
