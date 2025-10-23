@@ -11,10 +11,10 @@
     <div class="container mx-auto p-6 max-w-7xl">
         <!-- Header -->
         <div class="mb-8">
-            <h1 class="text-4xl font-bold mb-2">🤖 IDXMind Trading Dashboard</h1>
+            <h1 class="text-4xl font-bold mb-2">IDXMind Trading Dashboard</h1>
             <p class="text-gray-400">Real-time Indonesian stock market signals</p>
             <div class="mt-4">
-                <span id="status" class="px-3 py-1 bg-green-600 rounded-full text-sm">● Connecting...</span>
+                <span id="status" class="px-3 py-1 bg-green-600 rounded-full text-sm">Connecting...</span>
                 <span class="ml-4 text-gray-400 text-sm">Last update: <span id="lastUpdate">-</span></span>
             </div>
         </div>
@@ -41,11 +41,11 @@
         <div class="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-lg p-6 mb-6 border border-purple-700">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-2xl font-bold flex items-center">
-                    🔬 Backtest Performance
+                    Backtest Performance
                 </h2>
                 <button onclick="refreshBacktest()" 
                         class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-semibold transition">
-                    🔄 Refresh
+                    Refresh
                 </button>
             </div>
 
@@ -56,7 +56,7 @@
 
         <!-- Live Performance Tracker -->
         <div class="bg-gray-800 rounded-lg p-6 mb-6">
-            <h2 class="text-2xl font-bold mb-4">📊 Live Signal Performance</h2>
+            <h2 class="text-2xl font-bold mb-4">Live Signal Performance</h2>
             <div id="livePerformance">
                 <div class="text-center text-gray-400 py-4">Loading live performance...</div>
             </div>
@@ -65,7 +65,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Latest Signals -->
             <div class="lg:col-span-1 bg-gray-800 rounded-lg p-6">
-                <h2 class="text-2xl font-bold mb-4">🔔 Latest Signals</h2>
+                <h2 class="text-2xl font-bold mb-4">Latest Signals</h2>
                 <div id="signalsList" class="space-y-3 max-h-[500px] overflow-y-auto">
                     <div class="text-center text-gray-400 py-8">Loading...</div>
                 </div>
@@ -73,7 +73,7 @@
 
             <!-- Stock Table -->
             <div class="lg:col-span-2 bg-gray-800 rounded-lg p-6">
-                <h2 class="text-2xl font-bold mb-4">📊 Market Scanner</h2>
+                <h2 class="text-2xl font-bold mb-4">Market Scanner</h2>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="border-b border-gray-700">
@@ -99,7 +99,7 @@
 
         <!-- News Section -->
         <div class="mt-6 bg-gray-800 rounded-lg p-6">
-            <h2 class="text-2xl font-bold mb-4">📰 Market News & Sentiment</h2>
+            <h2 class="text-2xl font-bold mb-4">Market News & Sentiment</h2>
             <div id="newsList" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="text-center text-gray-400 py-8">Loading news...</div>
             </div>
@@ -107,7 +107,7 @@
 
         <!-- Footer -->
         <div class="mt-8 text-center text-sm text-gray-500">
-            <p>⚠️ Disclaimer: This is for educational purposes only. Not financial advice. Trade at your own risk.</p>
+            <p>âš ï¸ Disclaimer: This is for educational purposes only. Not financial advice. Trade at your own risk.</p>
         </div>
     </div>
     <div id="chartModal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
@@ -115,7 +115,7 @@
             <!-- Close button -->
             <button onclick="closeChart()" 
                     class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">
-                ✕
+                âœ•
             </button>
             
             <!-- Chart title -->
@@ -148,7 +148,7 @@
                     <tr class="border-b border-gray-700 hover:bg-gray-700 transition">
                         <td class="py-3 px-2 font-bold cursor-pointer hover:text-blue-400"
                             onclick="showChart('${stock.symbol}')">
-                            📈 ${stock.symbol}
+                             ${stock.symbol}
                         </td>
                         <td class="py-3 px-2 text-right">
                             Rp ${stock.price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -181,11 +181,11 @@
                 `).join('');
 
                 document.getElementById('totalStocks').textContent = stocks.length;
-                document.getElementById('status').innerHTML = '● Live';
+                document.getElementById('status').innerHTML = ' Live';
                 document.getElementById('status').className = 'px-3 py-1 bg-green-600 rounded-full text-sm';
             } catch (error) {
                 console.error('Error loading stocks:', error);
-                document.getElementById('status').innerHTML = '● Offline';
+                document.getElementById('status').innerHTML = 'Offline';
                 document.getElementById('status').className = 'px-3 py-1 bg-red-600 rounded-full text-sm';
             }
         }
@@ -222,7 +222,7 @@
                             <span class="font-semibold">Confidence:</span> ${signal.confidence.toFixed(0)}%
                         </div>
                         <div class="text-xs text-gray-400">
-                            ${signal.reasons.slice(0, 2).join(' • ')}
+                            ${signal.reasons.slice(0, 2).join('')}
                         </div>
                         <div class="text-xs text-gray-500 mt-2">
                             ${new Date(signal.timestamp).toLocaleString('id-ID')}
@@ -270,13 +270,199 @@
                         </h3>
                         <a href="${article.link}" target="_blank" 
                            class="text-xs text-blue-400 hover:text-blue-300 hover:underline">
-                            Read more →
+                            Read more â†’
                         </a>
                     </div>
                 `).join('');
             } catch (error) {
                 console.error('Error loading news:', error);
             }
+        }
+
+
+        // Load Live Performance
+        async function loadLivePerformance() {
+            try {
+                const response = await fetch(`${API_URL}/api/performance/live`);
+                const data = await response.json();
+                
+                const container = document.getElementById('livePerformance');
+                
+                if (data.status === 'no_signals' || data.status === 'no_live_data') {
+                    container.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <p class="mb-2">⏳ ${data.message}</p>
+                            <p class="text-sm">Signals will appear here once generated</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                if (data.status === 'live' && data.positions) {
+                    const summary = data.summary;
+                    
+                    container.innerHTML = `
+                        <!-- Summary Cards -->
+                        <div class="grid grid-cols-4 gap-4 mb-6">
+                            <div class="bg-gray-700 p-4 rounded-lg text-center">
+                                <div class="text-2xl font-bold">${summary.total_positions}</div>
+                                <div class="text-sm text-gray-400">Total Positions</div>
+                            </div>
+                            <div class="bg-green-900 bg-opacity-30 p-4 rounded-lg text-center border border-green-700">
+                                <div class="text-2xl font-bold text-green-400">${summary.winning}</div>
+                                <div class="text-sm text-gray-400">Winning</div>
+                            </div>
+                            <div class="bg-red-900 bg-opacity-30 p-4 rounded-lg text-center border border-red-700">
+                                <div class="text-2xl font-bold text-red-400">${summary.losing}</div>
+                                <div class="text-sm text-gray-400">Losing</div>
+                            </div>
+                            <div class="bg-blue-900 bg-opacity-30 p-4 rounded-lg text-center border border-blue-700">
+                                <div class="text-2xl font-bold text-blue-400">${summary.live_win_rate}</div>
+                                <div class="text-sm text-gray-400">Win Rate</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Average P&L -->
+                        <div class="bg-gray-700 p-4 rounded-lg mb-4 text-center">
+                            <div class="text-sm text-gray-400 mb-1">Average Unrealized P&L</div>
+                            <div class="text-3xl font-bold ${summary.avg_unrealized_pnl.startsWith('+') ? 'text-green-400' : 'text-red-400'}">
+                                ${summary.avg_unrealized_pnl}
+                            </div>
+                        </div>
+                        
+                        <!-- Position List -->
+                        <div class="space-y-3">
+                            ${data.positions.map(pos => `
+                                <div class="bg-gray-700 p-4 rounded-lg border-l-4 ${pos.status === 'winning' ? 'border-green-500' : 'border-red-500'}">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div class="font-bold text-lg">${pos.symbol}</div>
+                                            <div class="text-sm text-gray-400">${pos.signal} Signal</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-2xl font-bold ${pos.pnl_pct >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                                ${pos.pnl_pct >= 0 ? '+' : ''}${pos.pnl_pct.toFixed(2)}%
+                                            </div>
+                                            <div class="text-xs text-gray-400">${pos.status}</div>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                            <span class="text-gray-400">Entry:</span> 
+                                            <span class="font-semibold">Rp ${pos.entry_price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-gray-400">Current:</span> 
+                                            <span class="font-semibold">Rp ${pos.current_price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-2">
+                                        ${new Date(pos.timestamp).toLocaleString('id-ID')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading live performance:', error);
+                document.getElementById('livePerformance').innerHTML = `
+                    <div class="text-center text-gray-400 py-8">
+                        <p>⚠️ Unable to load live performance</p>
+                        <p class="text-sm mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Load Backtest Performance
+        async function loadBacktest() {
+            try {
+                const response = await fetch(`${API_URL}/api/backtest/summary`);
+                const data = await response.json();
+                
+                const container = document.getElementById('backtestContent');
+                
+                if (data.status === 'no_data') {
+                    container.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <p class="mb-4">📊 No backtest data available yet</p>
+                            <p class="text-sm">Run backtester.py to see historical performance</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const metrics = data.metrics;
+                const assessment = data.assessment;
+                
+                // Color for assessment
+                const assessmentColor = {
+                    'Excellent': 'text-green-400',
+                    'Good': 'text-blue-400',
+                    'Moderate': 'text-yellow-400',
+                    'Needs Improvement': 'text-red-400'
+                }[assessment] || 'text-gray-400';
+                
+                container.innerHTML = `
+                    <!-- Assessment Badge -->
+                    <div class="text-center mb-6">
+                        <div class="text-sm text-gray-400 mb-2">Strategy Assessment</div>
+                        <div class="text-3xl font-bold ${assessmentColor}">
+                            ${assessment}
+                        </div>
+                    </div>
+                    
+                    <!-- Key Metrics Grid -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-purple-300">${metrics.win_rate.toFixed(1)}%</div>
+                            <div class="text-xs text-gray-400 mt-1">Win Rate</div>
+                        </div>
+                        
+                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
+                            <div class="text-2xl font-bold ${metrics.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}">
+                                ${metrics.total_return_pct >= 0 ? '+' : ''}${metrics.total_return_pct.toFixed(2)}%
+                            </div>
+                            <div class="text-xs text-gray-400 mt-1">Total Return</div>
+                        </div>
+                        
+                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-purple-300">${metrics.profit_factor.toFixed(2)}</div>
+                            <div class="text-xs text-gray-400 mt-1">Profit Factor</div>
+                        </div>
+                        
+                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-red-400">${metrics.max_drawdown.toFixed(2)}%</div>
+                            <div class="text-xs text-gray-400 mt-1">Max Drawdown</div>
+                        </div>
+                        
+                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
+                            <div class="text-2xl font-bold text-purple-300">${metrics.total_trades}</div>
+                            <div class="text-xs text-gray-400 mt-1">Total Trades</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Last Update -->
+                    <div class="text-center mt-4 text-xs text-gray-400">
+                        Last backtest: ${new Date(data.last_update).toLocaleString('id-ID')}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading backtest:', error);
+                document.getElementById('backtestContent').innerHTML = `
+                    <div class="text-center text-gray-400 py-4">
+                        ⚠️ Unable to load backtest data
+                    </div>
+                `;
+            }
+        }
+
+        // Refresh backtest (callable from button)
+        async function refreshBacktest() {
+            document.getElementById('backtestContent').innerHTML = 
+                '<div class="text-center text-gray-400 py-4">🔄 Refreshing...</div>';
+            await loadBacktest();
         }
 
         // Update timestamp
@@ -291,7 +477,9 @@
             await Promise.all([
                 loadStocks(),
                 loadSignals(),
-                loadNews()
+                loadNews(),
+                loadLivePerformance(),
+                loadBacktest()
             ]);
             updateTimestamp();
         }
@@ -305,7 +493,7 @@
         // Update timestamp every second
         setInterval(updateTimestamp, 1000);
 
-        console.log('✅ Dashboard loaded! Backend:', API_URL);
+        console.log('âœ… Dashboard loaded! Backend:', API_URL);
         function showChart(symbol) {
             console.log('Opening chart for:', symbol);
             

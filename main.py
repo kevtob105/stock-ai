@@ -744,10 +744,10 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     
     # 3. Moving Average Analysis (Weight: 20 points)
     if current_price > ma20 and ma20 > ma50:
-        score += 15
+        score += 20
         reasons.append("Golden Cross (MA20 > MA50)")
     elif current_price < ma20 and ma20 < ma50:
-        score -= 15
+        score -= 20
         reasons.append("Death Cross (MA20 < MA50)")
         
     if upper_bb and lower_bb:
@@ -766,8 +766,8 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
         reasons.append("Negative Market Sentiment")
     
     # 5. Volume Analysis (Weight: 10 points)
-    if volume_ratio > 1.5:
-        score += 8  
+    if volume_ratio > 2:
+        score += 10  
         reasons.append(f"High Volume ({volume_ratio:.1f}x avg)")
     elif volume_ratio < 0.5:
         score -= 5
