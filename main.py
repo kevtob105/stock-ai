@@ -31,6 +31,15 @@ from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime
 import asyncio
 
+from enhanced_signals import (
+    calculate_stochastic,
+    calculate_adx,
+    calculate_obv,
+    calculate_atr,
+    find_support_resistance,
+    calculate_price_position
+)
+
 TELEGRAM_TOKEN = "8247322040:AAEpGthXNLSnTPrWL8PbxrPJ_1hyWFHE0DA"  # Get from @BotFather
 CHAT_ID = "@IDXMind_bot"
 print(f"yfinance version: {yf.__version__}")
@@ -378,6 +387,12 @@ class Signal(BaseModel):
     reasons: List[str]
     timestamp: str
 
+    stochastic: Optional[float] = None
+    adx: Optional[float] = None
+    obv_trend: Optional[str] = None
+    support: Optional[float] = None
+    resistance: Optional[float] = None
+
 # =============================================================================
 # IN-MEMORY STORAGE (Replace with database in production)
 # =============================================================================
@@ -467,6 +482,7 @@ IDX_SYMBOLS = [
     'ASLC.JK',
     'BSBK.JK',
     'PPRE.JK',
+    'UNVR.JK',
 
 
     
@@ -485,6 +501,55 @@ print(f"📊 Monitoring {len(IDX_SYMBOLS)} Indonesian stocks (IDX)")
 # =============================================================================
 # TECHNICAL ANALYSIS FUNCTIONS
 # =============================================================================
+def detect_pre_breakout(df):
+    """Deteksi saham yang akan breakout"""
+    
+    # 1. Volume Surge (Volume naik 50%+ dari rata-rata 20 hari)
+    avg_volume = df['Volume'].rolling(20).mean().iloc[-2]
+    today_volume = df['Volume'].iloc[-1]
+    volume_ratio = today_volume / avg_volume
+    
+    # 2. Price Consolidation (Range sempit 3-5 hari terakhir)
+    recent_high = df['High'].iloc[-5:].max()
+    recent_low = df['Low'].iloc[-5:].min()
+    volatility = (recent_high - recent_low) / recent_low * 100
+    
+    # 3. Bollinger Squeeze (Bandwidth < 5%)
+    upper_bb, middle_bb, lower_bb, bandwidth = calculate_bollinger_bands(df['Close'].values)
+    
+    # 4. RSI Recovery (RSI naik dari oversold)
+    rsi_prev = calculate_rsi(df['Close'].iloc[:-1].values)
+    rsi_now = calculate_rsi(df['Close'].values)
+    rsi_momentum = rsi_now - rsi_prev
+    
+    # 5. MACD Crossover Baru
+    macd, signal = calculate_macd(df['Close'].values)
+    macd_cross = (macd > signal) and (macd - signal < 2)
+    
+    score = 0
+    reasons = []
+    
+    if volume_ratio > 1.5:
+        score += 30
+        reasons.append(f"Volume Surge: {volume_ratio:.1f}x")
+    
+    if volatility < 3:  # Consolidation ketat
+        score += 25
+        reasons.append(f"Tight Consolidation: {volatility:.1f}%")
+    
+    if bandwidth < 5:
+        score += 20
+        reasons.append("Bollinger Squeeze (Breakout Ready)")
+    
+    if rsi_momentum > 5 and rsi_now < 60:
+        score += 15
+        reasons.append(f"RSI Momentum: +{rsi_momentum:.1f}")
+    
+    if macd_cross:
+        score += 10
+        reasons.append("Fresh MACD Crossover")
+    
+    return score, reasons
 
 def calculate_rsi(prices, period=14):
     """
@@ -707,6 +772,11 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     price_change = current_price - prev_price
     price_change_pct = (price_change / prev_price * 100) if prev_price != 0 else 0
     
+    high = df['High'].values
+    low = df['Low'].values
+    close = df['Close'].values
+    volume = df['Volume'].values
+
     rsi = calculate_rsi(prices)
     macd_value, signal_value = calculate_macd(prices)
     ma20, ma50 = calculate_moving_averages(prices)
@@ -714,9 +784,19 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
     avg_volume = np.mean(volumes[-20:])
     current_volume = volumes[-1]
     volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+
+    stoch_k, stoch_d = calculate_stochastic(high, low, close)
+    adx = calculate_adx(high, low, close)
+    obv_value, obv_trend = calculate_obv(close, volume)
+    atr = calculate_atr(high, low, close)
+    support, resistance = find_support_resistance(close)
+    price_pos, price_status = calculate_price_position(
+        close[-1], support, resistance
+    )
     
     # Scoring system
     score = 0
+    confidence_multiplier = 1.0
     reasons = []
     
     # 1. RSI Analysis (Weight: 25 points)
@@ -782,11 +862,12 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
         reasons.append(f"Strong Downtrend ({price_change_pct:.1f}%)")
     
     # Generate final signal
-    confidence = min(abs(score), 100)
+    final_score = score * confidence_multiplier
+    confidence = min(abs(final_score), 100)
     
-    if score >= 40:
+    if score >= 60:
         signal = "BUY"
-    elif score <= -40:
+    elif score <= -60:
         signal = "SELL"
     else:
         signal = "HOLD"
@@ -799,6 +880,11 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
         'volume': int(current_volume),
         'rsi': float(rsi),
         'macd': float(macd_diff),
+        'stochastic': stoch_k,
+        'adx': adx,
+        'obv_trend': obv_trend,
+        'support': support,
+        'resistance': resistance,
         'sentiment': overall_sentiment,
         'signal': signal,
         'confidence': float(confidence),
