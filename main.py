@@ -45,6 +45,15 @@ CHAT_ID = "@IDXMind_bot"
 print(f"yfinance version: {yf.__version__}")
 print(f"yfinance location: {yf.__file__}")
 
+# =============================================================================
+# MOMENTUM DETECTION CONFIGURATION
+# =============================================================================
+MOMENTUM_VOLUME_MULTIPLIER = 2.0  # Volume harus 2x lipat dari rata-rata
+MOMENTUM_PRICE_THRESHOLD = 3.0    # Minimal kenaikan 3% untuk alert
+MOMENTUM_RSI_RANGE = (50, 70)     # RSI sweet spot untuk momentum
+MOMENTUM_SCAN_INTERVAL = 5        # Scan setiap 5 menit saat market buka
+
+
 
 # Load environment variables
 load_dotenv()
@@ -402,6 +411,7 @@ class DataStore:
         self.stocks = {}
         self.signals = deque(maxlen=50)  # Keep last 50 signals
         self.news_cache = []
+        self.momentum_cache = []  # Cache for momentum stocks
         self.signal_id_counter = 0
     
     def add_signal(self, signal_data):
@@ -696,6 +706,259 @@ def analyze_bollinger_bands(current_price, upper_band, middle_band, lower_band, 
             reasons.append("High Volatility")
     
     return score, reasons
+
+# =============================================================================
+# MOMENTUM DETECTION ENGINE - UNTUK SAHAM YANG BISA NAIK 10%+ SEHARI
+# =============================================================================
+
+def detect_pre_breakout_momentum(df):
+    """
+    Deteksi momentum sebelum breakout besar (10%+)
+    
+    Returns:
+        momentum_score: 0-100
+        momentum_signals: List of reasons
+        risk_level: LOW/MEDIUM/HIGH
+    """
+    if len(df) < 20:
+        return 0, [], "UNKNOWN"
+    
+    prices = df['Close'].values
+    volumes = df['Volume'].values
+    highs = df['High'].values
+    lows = df['Low'].values
+    
+    score = 0
+    signals = []
+    
+    # ========== 1. VOLUME SURGE (30 points) ==========
+    # Volume naik drastis = uang besar masuk
+    avg_volume_20 = np.mean(volumes[-20:-1])  # Exclude today
+    current_volume = volumes[-1]
+    volume_ratio = current_volume / avg_volume_20 if avg_volume_20 > 0 else 1
+    
+    if volume_ratio >= 3.0:
+        score += 30
+        signals.append(f"🚀 HUGE Volume Surge: {volume_ratio:.1f}x")
+    elif volume_ratio >= 2.0:
+        score += 20
+        signals.append(f"📈 Strong Volume: {volume_ratio:.1f}x")
+    elif volume_ratio >= 1.5:
+        score += 10
+        signals.append(f"↗️ Rising Volume: {volume_ratio:.1f}x")
+    
+    # ========== 2. PRICE CONSOLIDATION (25 points) ==========
+    # Range sempit = potensi ledakan
+    recent_high = np.max(highs[-5:])
+    recent_low = np.min(lows[-5:])
+    consolidation_range = (recent_high - recent_low) / recent_low * 100
+    
+    if consolidation_range < 2:
+        score += 25
+        signals.append(f"🎯 Tight Consolidation: {consolidation_range:.1f}%")
+    elif consolidation_range < 3:
+        score += 15
+        signals.append(f"📊 Narrowing Range: {consolidation_range:.1f}%")
+    
+    # ========== 3. BOLLINGER SQUEEZE (20 points) ==========
+    upper_bb, middle_bb, lower_bb, bandwidth = calculate_bollinger_bands(prices)
+    
+    if bandwidth and bandwidth < 5:
+        score += 20
+        signals.append(f"⚡ BB Squeeze: {bandwidth:.1f}% (Breakout Imminent)")
+    elif bandwidth and bandwidth < 8:
+        score += 10
+        signals.append(f"🔥 BB Tightening: {bandwidth:.1f}%")
+    
+    # ========== 4. RSI MOMENTUM (15 points) ==========
+    rsi_current = calculate_rsi(prices)
+    rsi_previous = calculate_rsi(prices[:-1])
+    rsi_change = rsi_current - rsi_previous
+    
+    # RSI naik dari oversold = momentum kuat
+    if 30 < rsi_current < 60 and rsi_change > 5:
+        score += 15
+        signals.append(f"💪 RSI Momentum: {rsi_current:.1f} (+{rsi_change:.1f})")
+    elif 40 < rsi_current < 65 and rsi_change > 3:
+        score += 8
+        signals.append(f"📊 RSI Rising: {rsi_current:.1f}")
+    
+    # ========== 5. FRESH MACD CROSSOVER (10 points) ==========
+    macd, signal = calculate_macd(prices)
+    macd_diff = macd - signal
+    
+    # MACD baru cross dan masih dekat
+    if 0 < macd_diff < 50:  # Fresh bullish cross
+        score += 10
+        signals.append("✅ Fresh MACD Bullish Cross")
+    
+    # ========== 6. BREAKOUT DETECTION (Bonus 20 points) ==========
+    current_price = prices[-1]
+    resistance_5d = np.max(highs[-5:-1])  # Resistance 5 hari terakhir
+    
+    # Harga tembus resistance dengan volume tinggi
+    if current_price > resistance_5d and volume_ratio > 1.5:
+        score += 20
+        signals.append(f"🔓 Breaking Resistance: Rp {resistance_5d:,.0f}")
+    
+    # ========== RISK ASSESSMENT ==========
+    if score >= 80:
+        risk_level = "HIGH"  # High risk, high reward
+    elif score >= 60:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+    
+    return score, signals, risk_level
+
+
+def scan_momentum_stocks():
+    """
+    Scan semua saham untuk cari yang berpotensi naik 10%+
+    
+    Returns:
+        List of momentum candidates
+    """
+    print(f"\n{'='*60}")
+    print("🔥 MOMENTUM SCANNER - Hunting 10%+ Gainers")
+    print(f"{'='*60}\n")
+    
+    momentum_candidates = []
+    
+    for symbol in IDX_SYMBOLS:
+        try:
+            import time
+            time.sleep(1)  # Rate limiting
+            
+            # Fetch data
+            df = get_stock_intelligent(symbol)
+            
+            if df is None or len(df) < 20:
+                continue
+            
+            # Detect momentum
+            momentum_score, signals, risk_level = detect_pre_breakout_momentum(df)
+            
+            # Filter: hanya yang score tinggi
+            if momentum_score >= 60:
+                current_price = df['Close'].iloc[-1]
+                price_change = (current_price - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100
+                
+                momentum_candidates.append({
+                    'symbol': symbol.replace('.JK', ''),
+                    'momentum_score': momentum_score,
+                    'price': current_price,
+                    'change_today': price_change,
+                    'signals': signals,
+                    'risk_level': risk_level,
+                    'potential': '+10-20%' if momentum_score >= 80 else '+5-15%',
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+                print(f"   🎯 {symbol.replace('.JK', '')} - Score: {momentum_score}/100")
+                print(f"      Price: Rp {current_price:,.0f} ({price_change:+.2f}%)")
+                print(f"      Risk: {risk_level} | Potential: {momentum_candidates[-1]['potential']}")
+                for signal in signals[:3]:  # Show top 3 signals
+                    print(f"      • {signal}")
+                print()
+        
+        except Exception as e:
+            continue
+    
+    # Sort by momentum score
+    momentum_candidates.sort(key=lambda x: x['momentum_score'], reverse=True)
+    
+    print(f"\n✅ Found {len(momentum_candidates)} momentum candidates!")
+    print(f"{'='*60}\n")
+    
+    return momentum_candidates
+
+
+def detect_intraday_momentum(symbol):
+    """
+    Deteksi momentum intraday (untuk real-time scanning)
+    
+    Args:
+        symbol: Stock symbol (e.g., 'BBCA.JK')
+    
+    Returns:
+        Dict with momentum analysis
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        
+        # Get today's intraday data (5-minute intervals)
+        df_intraday = ticker.history(period='1d', interval='5m')
+        
+        if df_intraday.empty or len(df_intraday) < 10:
+            return None
+        
+        # Get daily data for context
+        df_daily = ticker.history(period='20d')
+        
+        if df_daily.empty:
+            return None
+        
+        # Calculate intraday metrics
+        open_price = df_intraday['Close'].iloc[0]
+        current_price = df_intraday['Close'].iloc[-1]
+        high_today = df_intraday['High'].max()
+        low_today = df_intraday['Low'].min()
+        
+        # Price movement
+        change_pct = (current_price - open_price) / open_price * 100
+        
+        # Volume analysis
+        volume_today = df_intraday['Volume'].sum()
+        avg_daily_volume = df_daily['Volume'].mean()
+        volume_ratio = volume_today / avg_daily_volume if avg_daily_volume > 0 else 1
+        
+        # Momentum strength
+        momentum_strength = 0
+        momentum_signals = []
+        
+        # Strong price movement
+        if change_pct >= 5:
+            momentum_strength += 40
+            momentum_signals.append(f"🚀 +{change_pct:.2f}% Today")
+        elif change_pct >= 3:
+            momentum_strength += 25
+            momentum_signals.append(f"📈 +{change_pct:.2f}% Today")
+        
+        # Volume confirmation
+        if volume_ratio >= 2.5:
+            momentum_strength += 30
+            momentum_signals.append(f"💥 Volume {volume_ratio:.1f}x Normal")
+        elif volume_ratio >= 1.5:
+            momentum_strength += 15
+            momentum_signals.append(f"📊 Volume {volume_ratio:.1f}x Normal")
+        
+        # Trend consistency (price staying high)
+        recent_prices = df_intraday['Close'].iloc[-6:]  # Last 30 minutes
+        if all(p >= open_price * 1.02 for p in recent_prices):
+            momentum_strength += 20
+            momentum_signals.append("✅ Sustained Momentum")
+        
+        # Near high of day
+        if current_price >= high_today * 0.98:
+            momentum_strength += 10
+            momentum_signals.append("🎯 Near Day High")
+        
+        return {
+            'symbol': symbol.replace('.JK', ''),
+            'current_price': current_price,
+            'open_price': open_price,
+            'change_pct': change_pct,
+            'volume_ratio': volume_ratio,
+            'momentum_strength': momentum_strength,
+            'signals': momentum_signals,
+            'alert_level': 'URGENT' if momentum_strength >= 70 else 'WATCH' if momentum_strength >= 50 else 'NORMAL'
+        }
+    
+    except Exception as e:
+        return None
+
+
 # =============================================================================
 # AI SIGNAL GENERATION ENGINE
 # =============================================================================
@@ -812,6 +1075,20 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
         score -= 5
         reasons.append(f"Strong Downtrend ({price_change_pct:.1f}%)")
     
+    # 7. MOMENTUM BONUS (Deteksi potensi lonjakan 10%+)
+    momentum_score, momentum_signals, risk_level = detect_pre_breakout_momentum(df)
+    
+    if momentum_score >= 80:
+        score += 15  # Big bonus for high momentum
+        confidence_multiplier = 1.3  # Increase confidence
+        reasons.append(f"🚀 HIGH MOMENTUM ({momentum_score}/100)")
+        reasons.extend(momentum_signals[:2])  # Add top 2 momentum signals
+    elif momentum_score >= 60:
+        score += 10
+        confidence_multiplier = 1.2
+        reasons.append(f"🔥 Strong Momentum ({momentum_score}/100)")
+        reasons.append(momentum_signals[0] if momentum_signals else "Building momentum")
+    
     # Generate final signal
     final_score = score * confidence_multiplier
     confidence = min(abs(final_score), 100)
@@ -829,6 +1106,7 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
         'change': float(price_change),
         'change_percent': float(price_change_pct),
         'volume': int(current_volume),
+        'volume_ratio': float(volume_ratio),  # Add for momentum detection
         'rsi': float(rsi),
         'macd': float(macd_diff),
         'stochastic': stoch_k,
@@ -839,6 +1117,7 @@ def generate_trading_signal(symbol_clean, df, overall_sentiment):
         'sentiment': overall_sentiment,
         'signal': signal,
         'confidence': float(confidence),
+        'momentum_score': momentum_score,  # Add momentum score
         'reasons': reasons,
         'timestamp': datetime.now().isoformat(),
         'currency': 'IDR'  # Always IDR for IDX stocks
@@ -922,23 +1201,32 @@ scheduler = BackgroundScheduler()
 async def startup_event():
     """Run on app startup"""
     print("=" * 60)
-    print("🚀 AI STOCK TRADING SYSTEM - INDONESIA")
+    print("🚀 AI STOCK TRADING SYSTEM - INDONESIA + MOMENTUM DETECTOR")
     print("=" * 60)
     print(f"🇮🇩 Monitoring {len(IDX_SYMBOLS)} IDX stocks")
     print(f"📡 Data source: Yahoo Finance (IDX)")
     print(f"💰 Currency: Indonesian Rupiah (IDR)")
+    print(f"🔥 Momentum Detection: ENABLED (Hunting 10%+ gainers)")
     print("=" * 60)
     
     # Initial scan
     await scan_market()
     
-    # More frequent scanning (every 10 minutes during market hours)
+    # More frequent scanning (every 5 minutes during market hours)
     # IDX market hours: 09:00 - 16:00 WIB
     scheduler.add_job(
         lambda: asyncio.create_task(scan_market_smart()),
         'interval',
-        minutes=5,  # Scan every 10 minutes!
+        minutes=5,
         id='market_scan'
+    )
+    
+    # Momentum scanner (every 10 minutes during market hours)
+    scheduler.add_job(
+        lambda: asyncio.create_task(momentum_scan_job()),
+        'interval',
+        minutes=10,
+        id='momentum_scan'
     )
     
     # News update every 15 minutes
@@ -950,8 +1238,40 @@ async def startup_event():
     )
     
     scheduler.start()
-    print("✅ Scheduler started - Scan every 10 minutes")
+    print("✅ Scheduler started:")
+    print("   • Market scan: Every 5 minutes")
+    print("   • Momentum scan: Every 10 minutes")
+    print("   • News update: Every 15 minutes")
     print("=" * 60)
+
+
+async def momentum_scan_job():
+    """Background job untuk scan momentum stocks"""
+    import pytz
+    
+    try:
+        # Check market hours
+        wib = pytz.timezone('Asia/Jakarta')
+        utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
+        now_wib = utc_now.astimezone(wib)
+        hour = now_wib.hour
+        
+        # Only scan during market hours
+        if 9 <= hour <= 16:
+            print(f"\n🔥 Running Momentum Scan ({now_wib.strftime('%H:%M WIB')})")
+            momentum_stocks = scan_momentum_stocks()
+            
+            # Store momentum stocks for quick access
+            store.momentum_cache = momentum_stocks
+            
+            # Alert if found high-potential stocks
+            if momentum_stocks:
+                top = momentum_stocks[0]
+                if top['momentum_score'] >= 80:
+                    print(f"⚠️  HIGH MOMENTUM ALERT: {top['symbol']} - Score {top['momentum_score']}/100")
+    
+    except Exception as e:
+        print(f"❌ Momentum scan error: {str(e)}")
 
 
 async def scan_market_smart():  
@@ -1058,6 +1378,216 @@ def get_stats():
         "last_scan": signals[0]['timestamp'] if signals else None,
         "uptime": "Running"
     }
+
+# =============================================================================
+# MOMENTUM DETECTION API ENDPOINTS
+# =============================================================================
+
+@app.get("/api/momentum/scan")
+async def scan_for_momentum():
+    """
+    Scan seluruh market untuk saham dengan momentum kuat (potensi 10%+)
+    
+    Returns:
+        List of stocks dengan momentum score tinggi
+    """
+    try:
+        momentum_stocks = scan_momentum_stocks()
+        
+        return {
+            "status": "success",
+            "total_found": len(momentum_stocks),
+            "timestamp": datetime.now().isoformat(),
+            "candidates": momentum_stocks[:10],  # Top 10
+            "message": f"Found {len(momentum_stocks)} momentum candidates"
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error scanning momentum: {str(e)}"
+        )
+
+
+@app.get("/api/momentum/stock/{symbol}")
+async def get_stock_momentum(symbol: str):
+    """
+    Analisa momentum untuk 1 saham spesifik
+    
+    Args:
+        symbol: Stock symbol (tanpa .JK)
+    
+    Returns:
+        Detailed momentum analysis
+    """
+    try:
+        symbol_yf = f"{symbol}.JK" if not symbol.endswith('.JK') else symbol
+        
+        # Get historical data
+        df = get_stock_intelligent(symbol_yf)
+        
+        if df is None or len(df) < 20:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Insufficient data for {symbol}"
+            )
+        
+        # Detect momentum
+        momentum_score, signals, risk_level = detect_pre_breakout_momentum(df)
+        
+        # Get current stats
+        current_price = df['Close'].iloc[-1]
+        prev_price = df['Close'].iloc[-2]
+        change_pct = (current_price - prev_price) / prev_price * 100
+        
+        return {
+            "symbol": symbol,
+            "current_price": float(current_price),
+            "change_today": float(change_pct),
+            "momentum_score": momentum_score,
+            "momentum_signals": signals,
+            "risk_level": risk_level,
+            "recommendation": (
+                "STRONG BUY - High momentum!" if momentum_score >= 80
+                else "BUY - Good momentum" if momentum_score >= 60
+                else "WATCH - Building momentum" if momentum_score >= 40
+                else "HOLD - Low momentum"
+            ),
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error analyzing {symbol}: {str(e)}"
+        )
+
+
+@app.get("/api/momentum/intraday/{symbol}")
+async def get_intraday_momentum(symbol: str):
+    """
+    Deteksi momentum intraday (untuk trading hari ini)
+    
+    Args:
+        symbol: Stock symbol (tanpa .JK)
+    
+    Returns:
+        Intraday momentum analysis
+    """
+    try:
+        symbol_yf = f"{symbol}.JK" if not symbol.endswith('.JK') else symbol
+        
+        result = detect_intraday_momentum(symbol_yf)
+        
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Cannot get intraday data for {symbol}"
+            )
+        
+        return {
+            "status": "success",
+            "data": result,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting intraday momentum: {str(e)}"
+        )
+
+
+@app.get("/api/momentum/alerts")
+def get_momentum_alerts():
+    """
+    Get real-time momentum alerts
+    
+    Returns:
+        List of stocks dengan momentum URGENT atau WATCH
+    """
+    alerts = []
+    
+    try:
+        # Check stored stocks for momentum
+        for stock in store.get_all_stocks():
+            symbol = stock['symbol']
+            
+            # Quick check: high volume + strong price movement
+            if stock.get('volume_ratio', 0) >= 2.0 and stock.get('change_percent', 0) >= 3.0:
+                alerts.append({
+                    'symbol': symbol,
+                    'price': stock['price'],
+                    'change': stock['change_percent'],
+                    'alert_type': 'MOMENTUM_SURGE',
+                    'message': f"{symbol} showing strong momentum: +{stock['change_percent']:.2f}% with {stock.get('volume_ratio', 0):.1f}x volume",
+                    'timestamp': stock['timestamp']
+                })
+        
+        return {
+            "status": "success",
+            "total_alerts": len(alerts),
+            "alerts": sorted(alerts, key=lambda x: x['change'], reverse=True),
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "alerts": []
+        }
+
+
+@app.get("/api/momentum/top")
+async def get_top_momentum():
+    """
+    Get top 5 saham dengan momentum terkuat hari ini
+    
+    Quick endpoint untuk dashboard
+    """
+    try:
+        top_momentum = []
+        
+        for symbol in IDX_SYMBOLS[:20]:  # Scan 20 saham pertama untuk speed
+            try:
+                df = get_stock_intelligent(symbol)
+                
+                if df is None or len(df) < 20:
+                    continue
+                
+                momentum_score, signals, risk = detect_pre_breakout_momentum(df)
+                
+                if momentum_score >= 50:
+                    top_momentum.append({
+                        'symbol': symbol.replace('.JK', ''),
+                        'score': momentum_score,
+                        'price': float(df['Close'].iloc[-1]),
+                        'signals': signals[:2],  # Top 2 signals only
+                        'risk': risk
+                    })
+            
+            except:
+                continue
+        
+        # Sort and get top 5
+        top_momentum.sort(key=lambda x: x['score'], reverse=True)
+        
+        return {
+            "status": "success",
+            "top_momentum": top_momentum[:5],
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting top momentum: {str(e)}"
+        )
 
 # =============================================================================
 # WEBSOCKET for Real-time Updates
