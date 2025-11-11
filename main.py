@@ -1999,6 +1999,251 @@ async def force_scan():
             "error": str(e)
         }
 # =============================================================================
+# =============================================================================
+# MOMENTUM ANALYSIS FUNCTIONS - Add to main.py
+# =============================================================================
+
+def calculate_momentum_indicators(df):
+    """Calculate comprehensive momentum indicators"""
+    if len(df) < 50:
+        return None
+    
+    prices = df['Close'].values
+    volumes = df['Volume'].values
+    
+    # Price momentum
+    current_price = prices[-1]
+    price_1d = prices[-2] if len(prices) > 1 else current_price
+    price_5d = prices[-6] if len(prices) > 5 else current_price
+    price_10d = prices[-11] if len(prices) > 10 else current_price
+    price_20d = prices[-21] if len(prices) > 20 else current_price
+    
+    momentum_1d = ((current_price - price_1d) / price_1d * 100) if price_1d else 0
+    momentum_5d = ((current_price - price_5d) / price_5d * 100) if price_5d else 0
+    momentum_10d = ((current_price - price_10d) / price_10d * 100) if price_10d else 0
+    momentum_20d = ((current_price - price_20d) / price_20d * 100) if price_20d else 0
+    
+    # Technical indicators
+    rsi = calculate_rsi(prices)
+    macd_value, signal_value = calculate_macd(prices)
+    macd_histogram = macd_value - signal_value
+    
+    # Moving averages
+    ma20, ma50 = calculate_moving_averages(prices)
+    
+    # Bollinger Bands
+    upper_bb, middle_bb, lower_bb, bb_bandwidth = calculate_bollinger_bands(prices)
+    
+    # Volume analysis
+    avg_volume_20 = np.mean(volumes[-20:]) if len(volumes) >= 20 else np.mean(volumes)
+    current_volume = volumes[-1]
+    volume_ratio = (current_volume / avg_volume_20) if avg_volume_20 > 0 else 1
+    
+    # Momentum score (0-100)
+    score = 0
+    alerts = []
+    
+    # Price momentum scoring
+    if momentum_1d > 3:
+        score += 15
+        alerts.append(f"🚀 Strong daily momentum: +{momentum_1d:.2f}%")
+    elif momentum_1d < -3:
+        score -= 15
+        alerts.append(f"⚠️ Weak daily momentum: {momentum_1d:.2f}%")
+    
+    if momentum_5d > 10:
+        score += 20
+        alerts.append(f"📈 Excellent 5-day trend: +{momentum_5d:.2f}%")
+    elif momentum_5d < -10:
+        score -= 20
+        alerts.append(f"📉 Poor 5-day trend: {momentum_5d:.2f}%")
+    
+    # RSI momentum
+    if 40 <= rsi <= 60:
+        score += 10
+        alerts.append(f"✅ RSI in healthy range: {rsi:.1f}")
+    elif rsi < 30:
+        score += 15
+        alerts.append(f"💎 RSI oversold - potential reversal: {rsi:.1f}")
+    elif rsi > 70:
+        score -= 15
+        alerts.append(f"⚠️ RSI overbought - caution: {rsi:.1f}")
+    
+    # MACD momentum
+    if macd_histogram > 0 and macd_value > signal_value:
+        score += 15
+        alerts.append("🟢 MACD bullish crossover")
+    elif macd_histogram < 0 and macd_value < signal_value:
+        score -= 15
+        alerts.append("🔴 MACD bearish crossover")
+    
+    # Moving average trend
+    if current_price > ma20 > ma50:
+        score += 15
+        alerts.append("⭐ Price above MA20 & MA50 - strong uptrend")
+    elif current_price < ma20 < ma50:
+        score -= 15
+        alerts.append("⚠️ Price below MA20 & MA50 - downtrend")
+    
+    # Volume confirmation
+    if volume_ratio > 1.5:
+        score += 10
+        alerts.append(f"📊 High volume confirmation: {volume_ratio:.1f}x average")
+    elif volume_ratio < 0.5:
+        score -= 5
+        alerts.append(f"⚠️ Low volume - weak momentum: {volume_ratio:.1f}x average")
+    
+    # Bollinger Bands position
+    if upper_bb and lower_bb:
+        bb_position = ((current_price - lower_bb) / (upper_bb - lower_bb) * 100)
+        if bb_position < 20:
+            score += 10
+            alerts.append(f"💎 Near lower BB - potential bounce: {bb_position:.1f}%")
+        elif bb_position > 80:
+            score -= 10
+            alerts.append(f"⚠️ Near upper BB - overbought: {bb_position:.1f}%")
+    
+    # Normalize score to 0-100
+    momentum_score = max(0, min(100, 50 + score))
+    
+    # Determine momentum status
+    if momentum_score >= 70:
+        status = "STRONG BULLISH"
+        color = "green"
+    elif momentum_score >= 55:
+        status = "BULLISH"
+        color = "lightgreen"
+    elif momentum_score >= 45:
+        status = "NEUTRAL"
+        color = "gray"
+    elif momentum_score >= 30:
+        status = "BEARISH"
+        color = "orange"
+    else:
+        status = "STRONG BEARISH"
+        color = "red"
+    
+    return {
+        'momentum_score': round(momentum_score, 2),
+        'status': status,
+        'color': color,
+        'price_momentum': {
+            '1_day': round(momentum_1d, 2),
+            '5_day': round(momentum_5d, 2),
+            '10_day': round(momentum_10d, 2),
+            '20_day': round(momentum_20d, 2)
+        },
+        'technical_indicators': {
+            'rsi': round(rsi, 2),
+            'macd': round(macd_value, 2),
+            'macd_signal': round(signal_value, 2),
+            'macd_histogram': round(macd_histogram, 2),
+            'ma20': round(ma20, 2),
+            'ma50': round(ma50, 2)
+        },
+        'volume_analysis': {
+            'current_volume': int(current_volume),
+            'avg_volume_20d': int(avg_volume_20),
+            'volume_ratio': round(volume_ratio, 2)
+        },
+        'bollinger_bands': {
+            'upper': round(upper_bb, 2) if upper_bb else None,
+            'middle': round(middle_bb, 2) if middle_bb else None,
+            'lower': round(lower_bb, 2) if lower_bb else None,
+            'bandwidth': round(bb_bandwidth, 2) if bb_bandwidth else None
+        },
+        'alerts': alerts,
+        'current_price': round(current_price, 2),
+        'timestamp': datetime.now().isoformat()
+    }
+
+
+# API ENDPOINTS - Add these to main.py before if __name__ == "__main__":
+
+@app.get("/api/momentum/stock/{symbol}")
+async def analyze_stock_momentum(symbol: str):
+    """Analyze momentum for a specific stock"""
+    try:
+        if not symbol.endswith('.JK'):
+            symbol_with_jk = f"{symbol.upper()}.JK"
+        else:
+            symbol_with_jk = symbol.upper()
+        
+        print(f"\n🔍 Analyzing momentum for {symbol_with_jk}")
+        
+        df = get_stock_intelligent(symbol_with_jk)
+        
+        if df is None or df.empty:
+            raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
+        
+        momentum = calculate_momentum_indicators(df)
+        
+        if momentum is None:
+            raise HTTPException(status_code=400, detail="Insufficient data for momentum analysis (need 50+ days)")
+        
+        momentum['symbol'] = symbol.upper().replace('.JK', '')
+        momentum['symbol_full'] = symbol_with_jk
+        
+        print(f"✅ Momentum Score: {momentum['momentum_score']:.1f}/100 - {momentum['status']}")
+        
+        return momentum
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error analyzing {symbol}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error analyzing momentum: {str(e)}")
+
+
+@app.get("/api/momentum/alerts")
+async def get_momentum_alerts():
+    """Get momentum alerts for all monitored stocks"""
+    try:
+        print("\n🚨 Scanning for momentum alerts...")
+        
+        alerts = []
+        
+        for symbol in IDX_SYMBOLS[:20]:
+            try:
+                df = get_stock_intelligent(symbol)
+                
+                if df is None or df.empty:
+                    continue
+                
+                momentum = calculate_momentum_indicators(df)
+                
+                if momentum is None:
+                    continue
+                
+                if momentum['momentum_score'] >= 65 or momentum['momentum_score'] <= 35:
+                    alerts.append({
+                        'symbol': symbol.replace('.JK', ''),
+                        'momentum_score': momentum['momentum_score'],
+                        'status': momentum['status'],
+                        'color': momentum['color'],
+                        'current_price': momentum['current_price'],
+                        'top_alerts': momentum['alerts'][:3],
+                        'price_momentum': momentum['price_momentum'],
+                        'timestamp': momentum['timestamp']
+                    })
+            
+            except Exception as e:
+                print(f"   ⚠️ Error processing {symbol}: {str(e)[:50]}")
+                continue
+        
+        alerts.sort(key=lambda x: abs(x['momentum_score'] - 50), reverse=True)
+        
+        print(f"✅ Found {len(alerts)} momentum alerts")
+        
+        return {
+            'total_alerts': len(alerts),
+            'alerts': alerts,
+            'timestamp': datetime.now().isoformat()
+        }
+    
+    except Exception as e:
+        print(f"❌ Error getting momentum alerts: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting alerts: {str(e)}")
 # RUN SERVER
 # =============================================================================
 

@@ -3,22 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Stock Trading Dashboard</title>
+    <title>IDXMind - AI Stock Trading Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://s3.tradingview.com/tv.js"></script>
 </head>
 <body class="bg-gray-900 text-white">
-    <div class="container mx-auto p-6 max-w-7xl">
-        <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-4xl font-bold mb-2">IDXMind Trading Dashboard</h1>
-            <p class="text-gray-400">Real-time Indonesian stock market signals</p>
-            <div class="mt-4">
-                <span id="status" class="px-3 py-1 bg-green-600 rounded-full text-sm">Connecting...</span>
-                <span class="ml-4 text-gray-400 text-sm">Last update: <span id="lastUpdate">-</span></span>
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-purple-900 via-indigo-900 to-blue-900 border-b-4 border-purple-500">
+        <div class="container mx-auto p-6 max-w-7xl">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="text-center md:text-left">
+                    <h1 class="text-4xl md:text-5xl font-extrabold mb-2">
+                        🤖 IDXMind Trading Dashboard
+                    </h1>
+                    <p class="text-gray-300 text-lg">Powered by AI • Indonesian Stock Market</p>
+                </div>
+                <div class="mt-4 md:mt-0 space-y-2">
+                    <div class="flex items-center space-x-4 flex-wrap gap-2">
+                        <span id="status" class="px-4 py-2 bg-green-600 rounded-full text-sm font-semibold">
+                            ● Connecting...
+                        </span>
+                        <button onclick="refreshAll()" 
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-full text-sm font-semibold transition">
+                            🔄 Refresh
+                        </button>
+                        <button onclick="showMomentumAnalyzer()" 
+                                class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-full text-sm font-semibold transition">
+                            📊 Momentum Analyzer
+                        </button>
+                        <button onclick="showMomentumAlerts()" 
+                                class="px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-full text-sm font-semibold transition">
+                            🚨 Momentum Alerts
+                        </button>
+                    </div>
+                    <div class="text-sm text-gray-300">
+                        Last update: <span id="lastUpdate" class="font-semibold">-</span>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
 
+    <div class="container mx-auto p-6 max-w-7xl">
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div class="bg-gray-800 p-6 rounded-lg">
@@ -38,34 +64,11 @@
                 <div class="text-3xl font-bold text-blue-400" id="totalStocks">0</div>
             </div>
         </div>
-        <div class="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-lg p-6 mb-6 border border-purple-700">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold flex items-center">
-                    Backtest Performance
-                </h2>
-                <button onclick="refreshBacktest()" 
-                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-semibold transition">
-                    Refresh
-                </button>
-            </div>
-
-            <div id="backtestContent">
-                <div class="text-center text-gray-400 py-4">Loading backtest data...</div>
-            </div>
-        </div>
-
-        <!-- Live Performance Tracker -->
-        <div class="bg-gray-800 rounded-lg p-6 mb-6">
-            <h2 class="text-2xl font-bold mb-4">Live Signal Performance</h2>
-            <div id="livePerformance">
-                <div class="text-center text-gray-400 py-4">Loading live performance...</div>
-            </div>
-        </div>                                  
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Latest Signals -->
             <div class="lg:col-span-1 bg-gray-800 rounded-lg p-6">
-                <h2 class="text-2xl font-bold mb-4">Latest Signals</h2>
+                <h2 class="text-2xl font-bold mb-4">📢 Latest Signals</h2>
                 <div id="signalsList" class="space-y-3 max-h-[500px] overflow-y-auto">
                     <div class="text-center text-gray-400 py-8">Loading...</div>
                 </div>
@@ -73,7 +76,7 @@
 
             <!-- Stock Table -->
             <div class="lg:col-span-2 bg-gray-800 rounded-lg p-6">
-                <h2 class="text-2xl font-bold mb-4">Market Scanner</h2>
+                <h2 class="text-2xl font-bold mb-4">📊 Market Scanner</h2>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead class="border-b border-gray-700">
@@ -84,7 +87,6 @@
                                 <th class="py-3 px-2 text-center">RSI</th>
                                 <th class="py-3 px-2 text-center">Signal</th>
                                 <th class="py-3 px-2 text-right">Confidence</th>
-                                <th class="py-3 px-2 text-center">Chart</th>
                             </tr>
                         </thead>
                         <tbody id="stocksTable">
@@ -96,41 +98,146 @@
                 </div>
             </div>
         </div>
-
-        <!-- News Section -->
-        <div class="mt-6 bg-gray-800 rounded-lg p-6">
-            <h2 class="text-2xl font-bold mb-4">Market News & Sentiment</h2>
-            <div id="newsList" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="text-center text-gray-400 py-8">Loading news...</div>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="mt-8 text-center text-sm text-gray-500">
-            <p>âš ï¸ Disclaimer: This is for educational purposes only. Not financial advice. Trade at your own risk.</p>
-        </div>
     </div>
-    <div id="chartModal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-        <div class="bg-gray-900 rounded-lg max-w-6xl w-full p-6 relative">
-            <!-- Close button -->
-            <button onclick="closeChart()" 
+
+    <!-- Momentum Analyzer Modal -->
+    <div id="momentumModal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 rounded-lg max-w-4xl w-full p-6 relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeMomentumModal()" 
                     class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">
-                âœ•
+                ✕
             </button>
             
-            <!-- Chart title -->
-            <h2 id="chartTitle" class="text-2xl font-bold mb-4 text-white">Loading...</h2>
+            <h2 class="text-3xl font-bold mb-6 text-purple-400">📊 Momentum Analyzer</h2>
             
-            <!-- TradingView container -->
-            <div id="tradingview_widget" style="height: 500px;"></div>
+            <!-- Stock Symbol Input -->
+            <div class="mb-6">
+                <label class="block text-gray-300 mb-2 font-semibold">Enter Stock Symbol:</label>
+                <div class="flex gap-2">
+                    <input type="text" 
+                           id="momentumSymbol" 
+                           placeholder="e.g., BBCA, TLKM, GOTO"
+                           class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500"
+                           onkeypress="if(event.key==='Enter') analyzeMomentum()">
+                    <button onclick="analyzeMomentum()" 
+                            class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold transition">
+                        Analyze
+                    </button>
+                </div>
+                <p class="text-gray-500 text-sm mt-2">Enter symbol without .JK suffix (e.g., BBCA instead of BBCA.JK)</p>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="momentumLoading" class="hidden text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+                <p class="text-gray-400 mt-4">Analyzing momentum...</p>
+            </div>
+
+            <!-- Results Container -->
+            <div id="momentumResults" class="hidden">
+                <!-- Momentum Score Card -->
+                <div class="bg-gradient-to-br from-purple-900 to-indigo-900 rounded-lg p-6 mb-6 border-2" id="scoreCard">
+                    <div class="text-center">
+                        <div class="text-gray-300 mb-2">Momentum Score</div>
+                        <div class="text-6xl font-bold" id="momentumScore">-</div>
+                        <div class="text-2xl font-semibold mt-2" id="momentumStatus">-</div>
+                        <div class="text-gray-300 mt-2">
+                            Symbol: <span id="resultSymbol" class="font-bold">-</span> | 
+                            Price: Rp <span id="resultPrice">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Price Momentum -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="text-gray-400 text-sm">1-Day</div>
+                        <div class="text-2xl font-bold" id="momentum1d">-</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="text-gray-400 text-sm">5-Day</div>
+                        <div class="text-2xl font-bold" id="momentum5d">-</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="text-gray-400 text-sm">10-Day</div>
+                        <div class="text-2xl font-bold" id="momentum10d">-</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="text-gray-400 text-sm">20-Day</div>
+                        <div class="text-2xl font-bold" id="momentum20d">-</div>
+                    </div>
+                </div>
+
+                <!-- Technical Indicators -->
+                <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-4">Technical Indicators</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-400">RSI:</span>
+                            <span class="font-bold ml-2" id="rsiValue">-</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">MACD:</span>
+                            <span class="font-bold ml-2" id="macdValue">-</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">MA20:</span>
+                            <span class="font-bold ml-2" id="ma20Value">-</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">MA50:</span>
+                            <span class="font-bold ml-2" id="ma50Value">-</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">Volume Ratio:</span>
+                            <span class="font-bold ml-2" id="volumeRatio">-</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">BB Width:</span>
+                            <span class="font-bold ml-2" id="bbWidth">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alerts -->
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h3 class="text-xl font-bold mb-4">📢 Momentum Alerts</h3>
+                    <div id="momentumAlertsList" class="space-y-2">
+                        <!-- Alerts will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Momentum Alerts Modal -->
+    <div id="alertsModal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 rounded-lg max-w-6xl w-full p-6 relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeAlertsModal()" 
+                    class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">
+                ✕
+            </button>
+            
+            <h2 class="text-3xl font-bold mb-6 text-orange-400">🚨 Momentum Alerts</h2>
+            <p class="text-gray-400 mb-6">Stocks with strong momentum (bullish or bearish)</p>
+
+            <!-- Loading -->
+            <div id="alertsLoading" class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+                <p class="text-gray-400 mt-4">Scanning for momentum alerts...</p>
+            </div>
+
+            <!-- Alerts Grid -->
+            <div id="alertsGrid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Alerts will be populated here -->
+            </div>
         </div>
     </div>
 
     <script>
-        // IMPORTANT: Change this URL after deploying to Railway
         const API_URL = 'https://web-production-84c20.up.railway.app';
         
-        // Fetch stocks
+        // Load stocks
         async function loadStocks() {
             try {
                 const response = await fetch(`${API_URL}/api/stocks`);
@@ -140,16 +247,13 @@
                 const tbody = document.getElementById('stocksTable');
                 
                 if (stocks.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">No stocks yet. Wait for first scan...</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">No stocks yet...</td></tr>';
                     return;
                 }
                 
                 tbody.innerHTML = stocks.map(stock => `
                     <tr class="border-b border-gray-700 hover:bg-gray-700 transition">
-                        <td class="py-3 px-2 font-bold cursor-pointer hover:text-blue-400"
-                            onclick="showChart('${stock.symbol}')">
-                             ${stock.symbol}
-                        </td>
+                        <td class="py-3 px-2 font-bold">📈 ${stock.symbol}</td>
                         <td class="py-3 px-2 text-right">
                             Rp ${stock.price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                         </td>
@@ -164,33 +268,26 @@
                         <td class="py-3 px-2 text-center">
                             <span class="px-3 py-1 rounded-full text-xs font-bold ${
                                 stock.signal === 'BUY' ? 'bg-green-600' :
-                                stock.signal === 'SELL' ? 'bg-red-600' :
-                                'bg-gray-600'
+                                stock.signal === 'SELL' ? 'bg-red-600' : 'bg-gray-600'
                             }">
                                 ${stock.signal}
                             </span>
                         </td>
                         <td class="py-3 px-2 text-right font-semibold">${stock.confidence.toFixed(0)}%</td>
-                        <td class="py-3 px-2 text-center">
-                            <button onclick="showChart('${stock.symbol}')" 
-                                    class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs font-semibold">
-                                📈 Chart
-                            </button>
-                        </td>
                     </tr>
                 `).join('');
 
                 document.getElementById('totalStocks').textContent = stocks.length;
-                document.getElementById('status').innerHTML = ' Live';
-                document.getElementById('status').className = 'px-3 py-1 bg-green-600 rounded-full text-sm';
+                document.getElementById('status').innerHTML = '● Live';
+                document.getElementById('status').className = 'px-4 py-2 bg-green-600 rounded-full text-sm font-semibold';
             } catch (error) {
                 console.error('Error loading stocks:', error);
-                document.getElementById('status').innerHTML = 'Offline';
-                document.getElementById('status').className = 'px-3 py-1 bg-red-600 rounded-full text-sm';
+                document.getElementById('status').innerHTML = '● Offline';
+                document.getElementById('status').className = 'px-4 py-2 bg-red-600 rounded-full text-sm font-semibold';
             }
         }
 
-        // Fetch signals
+        // Load signals
         async function loadSignals() {
             try {
                 const response = await fetch(`${API_URL}/api/signals?limit=10`);
@@ -199,7 +296,7 @@
                 const container = document.getElementById('signalsList');
                 
                 if (signals.length === 0) {
-                    container.innerHTML = '<div class="text-center text-gray-400 py-8">No signals yet. Wait for strong BUY/SELL signals...</div>';
+                    container.innerHTML = '<div class="text-center text-gray-400 py-8">No signals yet...</div>';
                     return;
                 }
 
@@ -217,20 +314,15 @@
                             </div>
                         </div>
                         <div class="text-sm text-gray-300 mb-2">
-                            <span class="font-semibold">Price:</span> 
-                            Rp ${signal.price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} | 
-                            <span class="font-semibold">Confidence:</span> ${signal.confidence.toFixed(0)}%
+                            Price: Rp ${signal.price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} | 
+                            Confidence: ${signal.confidence.toFixed(0)}%
                         </div>
                         <div class="text-xs text-gray-400">
-                            ${signal.reasons.slice(0, 2).join('')}
-                        </div>
-                        <div class="text-xs text-gray-500 mt-2">
-                            ${new Date(signal.timestamp).toLocaleString('id-ID')}
+                            ${signal.reasons.slice(0, 2).join(' • ')}
                         </div>
                     </div>
                 `).join('');
 
-                // Update stats
                 const buyCount = signals.filter(s => s.signal === 'BUY').length;
                 const sellCount = signals.filter(s => s.signal === 'SELL').length;
                 document.getElementById('totalSignals').textContent = signals.length;
@@ -241,302 +333,228 @@
             }
         }
 
-        // Fetch news
-        async function loadNews() {
+        // Show Momentum Analyzer Modal
+        function showMomentumAnalyzer() {
+            document.getElementById('momentumModal').classList.remove('hidden');
+            document.getElementById('momentumResults').classList.add('hidden');
+            document.getElementById('momentumSymbol').value = '';
+            document.getElementById('momentumSymbol').focus();
+        }
+
+        // Close Momentum Modal
+        function closeMomentumModal() {
+            document.getElementById('momentumModal').classList.add('hidden');
+        }
+
+        // Analyze Momentum
+        async function analyzeMomentum() {
+            const symbol = document.getElementById('momentumSymbol').value.trim().toUpperCase();
+            
+            if (!symbol) {
+                alert('Please enter a stock symbol');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('momentumLoading').classList.remove('hidden');
+            document.getElementById('momentumResults').classList.add('hidden');
+
             try {
-                const response = await fetch(`${API_URL}/api/news`);
-                const data = await response.json();
+                const response = await fetch(`${API_URL}/api/momentum/stock/${symbol}`);
                 
-                const container = document.getElementById('newsList');
-                
-                if (!data.articles || data.articles.length === 0) {
-                    container.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-8">No news available yet...</div>';
-                    return;
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || 'Stock not found or insufficient data');
                 }
 
-                container.innerHTML = data.articles.slice(0, 6).map(article => `
-                    <div class="bg-gray-700 p-4 rounded-lg hover:bg-gray-600 transition">
-                        <div class="mb-2">
-                            <span class="px-2 py-1 rounded text-xs font-bold ${
-                                article.sentiment === 'Bullish' ? 'bg-green-600' :
-                                article.sentiment === 'Bearish' ? 'bg-red-600' :
-                                'bg-gray-600'
-                            }">
-                                ${article.sentiment}
-                            </span>
+                const data = await response.json();
+                
+                // Validate data structure
+                if (!data || !data.price_momentum || !data.technical_indicators) {
+                    throw new Error('Invalid data received from server');
+                }
+
+                // Hide loading
+                document.getElementById('momentumLoading').classList.add('hidden');
+                document.getElementById('momentumResults').classList.remove('hidden');
+
+                // Update Score Card
+                document.getElementById('momentumScore').textContent = data.momentum_score.toFixed(0);
+                document.getElementById('momentumStatus').textContent = data.status;
+                document.getElementById('resultSymbol').textContent = data.symbol;
+                document.getElementById('resultPrice').textContent = data.current_price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+                // Color based on status
+                const scoreCard = document.getElementById('scoreCard');
+                if (data.color === 'green') {
+                    scoreCard.className = 'bg-gradient-to-br from-green-900 to-emerald-900 rounded-lg p-6 mb-6 border-2 border-green-500';
+                    document.getElementById('momentumScore').className = 'text-6xl font-bold text-green-400';
+                } else if (data.color === 'red') {
+                    scoreCard.className = 'bg-gradient-to-br from-red-900 to-rose-900 rounded-lg p-6 mb-6 border-2 border-red-500';
+                    document.getElementById('momentumScore').className = 'text-6xl font-bold text-red-400';
+                } else {
+                    scoreCard.className = 'bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg p-6 mb-6 border-2 border-gray-600';
+                    document.getElementById('momentumScore').className = 'text-6xl font-bold text-gray-400';
+                }
+
+                // Update Price Momentum - with safe defaults
+                const momentum1d = data.price_momentum?.['1_day'] ?? 0;
+                const momentum5d = data.price_momentum?.['5_day'] ?? 0;
+                const momentum10d = data.price_momentum?.['10_day'] ?? 0;
+                const momentum20d = data.price_momentum?.['20_day'] ?? 0;
+                
+                document.getElementById('momentum1d').textContent = `${momentum1d > 0 ? '+' : ''}${momentum1d.toFixed(2)}%`;
+                document.getElementById('momentum1d').className = `text-2xl font-bold ${momentum1d >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                
+                document.getElementById('momentum5d').textContent = `${momentum5d > 0 ? '+' : ''}${momentum5d.toFixed(2)}%`;
+                document.getElementById('momentum5d').className = `text-2xl font-bold ${momentum5d >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                
+                document.getElementById('momentum10d').textContent = `${momentum10d > 0 ? '+' : ''}${momentum10d.toFixed(2)}%`;
+                document.getElementById('momentum10d').className = `text-2xl font-bold ${momentum10d >= 0 ? 'text-green-400' : 'text-red-400'}`;
+                
+                document.getElementById('momentum20d').textContent = `${momentum20d > 0 ? '+' : ''}${momentum20d.toFixed(2)}%`;
+                document.getElementById('momentum20d').className = `text-2xl font-bold ${momentum20d >= 0 ? 'text-green-400' : 'text-red-400'}`;
+
+                // Update Technical Indicators - with safe defaults
+                const indicators = data.technical_indicators || {};
+                document.getElementById('rsiValue').textContent = (indicators.rsi ?? 0).toFixed(1);
+                document.getElementById('macdValue').textContent = (indicators.macd ?? 0).toFixed(2);
+                document.getElementById('ma20Value').textContent = `Rp ${(indicators.ma20 ?? 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+                document.getElementById('ma50Value').textContent = `Rp ${(indicators.ma50 ?? 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+                
+                const volumeAnalysis = data.volume_analysis || {};
+                document.getElementById('volumeRatio').textContent = `${(volumeAnalysis.volume_ratio ?? 0).toFixed(2)}x`;
+                
+                const bollingerBands = data.bollinger_bands || {};
+                document.getElementById('bbWidth').textContent = bollingerBands.bandwidth ? `${bollingerBands.bandwidth.toFixed(2)}%` : 'N/A';
+
+                // Update Alerts - with safe defaults
+                const alertsList = document.getElementById('momentumAlertsList');
+                const alerts = data.alerts || [];
+                if (alerts.length > 0) {
+                    alertsList.innerHTML = alerts.map(alert => `
+                        <div class="bg-gray-700 rounded p-3 text-sm">
+                            ${alert}
                         </div>
-                        <h3 class="font-semibold mb-2 text-sm leading-tight line-clamp-3">
-                            ${article.title}
-                        </h3>
-                        <a href="${article.link}" target="_blank" 
-                           class="text-xs text-blue-400 hover:text-blue-300 hover:underline">
-                            Read more â†’
-                        </a>
-                    </div>
-                `).join('');
+                    `).join('');
+                } else {
+                    alertsList.innerHTML = '<div class="text-center text-gray-400 py-4">No alerts at this time</div>';
+                }
+
             } catch (error) {
-                console.error('Error loading news:', error);
+                document.getElementById('momentumLoading').classList.add('hidden');
+                console.error('Momentum analysis error:', error);
+                alert(`Error: ${error.message}`);
             }
         }
 
+        // Show Momentum Alerts
+        async function showMomentumAlerts() {
+            document.getElementById('alertsModal').classList.remove('hidden');
+            document.getElementById('alertsLoading').classList.remove('hidden');
+            document.getElementById('alertsGrid').classList.add('hidden');
 
-        // Load Live Performance
-        async function loadLivePerformance() {
             try {
-                const response = await fetch(`${API_URL}/api/performance/live`);
+                const response = await fetch(`${API_URL}/api/momentum/alerts`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load alerts');
+                }
+                
                 const data = await response.json();
+
+                document.getElementById('alertsLoading').classList.add('hidden');
+                document.getElementById('alertsGrid').classList.remove('hidden');
+
+                const grid = document.getElementById('alertsGrid');
                 
-                const container = document.getElementById('livePerformance');
-                
-                if (data.status === 'no_signals' || data.status === 'no_live_data') {
-                    container.innerHTML = `
-                        <div class="text-center text-gray-400 py-8">
-                            <p class="mb-2">⏳ ${data.message}</p>
-                            <p class="text-sm">Signals will appear here once generated</p>
-                        </div>
-                    `;
+                if (!data.alerts || data.alerts.length === 0) {
+                    grid.innerHTML = '<div class="col-span-3 text-center text-gray-400 py-8">No strong momentum alerts at this time</div>';
                     return;
                 }
-                
-                if (data.status === 'live' && data.positions) {
-                    const summary = data.summary;
+
+                grid.innerHTML = data.alerts.map(alert => {
+                    // Safe defaults for all properties
+                    const symbol = alert.symbol || 'N/A';
+                    const momentumScore = alert.momentum_score ?? 0;
+                    const status = alert.status || 'NEUTRAL';
+                    const currentPrice = alert.current_price ?? 0;
+                    const topAlerts = alert.top_alerts || [];
+                    const color = alert.color || 'gray';
                     
-                    container.innerHTML = `
-                        <!-- Summary Cards -->
-                        <div class="grid grid-cols-4 gap-4 mb-6">
-                            <div class="bg-gray-700 p-4 rounded-lg text-center">
-                                <div class="text-2xl font-bold">${summary.total_positions}</div>
-                                <div class="text-sm text-gray-400">Total Positions</div>
+                    let bgColor, borderColor, textColor;
+                    if (color === 'green') {
+                        bgColor = 'bg-green-900 bg-opacity-30';
+                        borderColor = 'border-green-500';
+                        textColor = 'text-green-400';
+                    } else if (color === 'red') {
+                        bgColor = 'bg-red-900 bg-opacity-30';
+                        borderColor = 'border-red-500';
+                        textColor = 'text-red-400';
+                    } else {
+                        bgColor = 'bg-gray-800';
+                        borderColor = 'border-gray-600';
+                        textColor = 'text-gray-400';
+                    }
+
+                    return `
+                        <div class="${bgColor} border-2 ${borderColor} rounded-lg p-4">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="text-xl font-bold">${symbol}</div>
+                                <div class="text-3xl font-bold ${textColor}">${momentumScore.toFixed(0)}</div>
                             </div>
-                            <div class="bg-green-900 bg-opacity-30 p-4 rounded-lg text-center border border-green-700">
-                                <div class="text-2xl font-bold text-green-400">${summary.winning}</div>
-                                <div class="text-sm text-gray-400">Winning</div>
+                            <div class="text-sm mb-2">
+                                <span class="font-semibold ${textColor}">${status}</span>
                             </div>
-                            <div class="bg-red-900 bg-opacity-30 p-4 rounded-lg text-center border border-red-700">
-                                <div class="text-2xl font-bold text-red-400">${summary.losing}</div>
-                                <div class="text-sm text-gray-400">Losing</div>
+                            <div class="text-sm text-gray-300 mb-3">
+                                Price: Rp ${currentPrice.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                             </div>
-                            <div class="bg-blue-900 bg-opacity-30 p-4 rounded-lg text-center border border-blue-700">
-                                <div class="text-2xl font-bold text-blue-400">${summary.live_win_rate}</div>
-                                <div class="text-sm text-gray-400">Win Rate</div>
+                            <div class="space-y-1">
+                                ${topAlerts.slice(0, 3).map(a => `
+                                    <div class="text-xs text-gray-400">${a}</div>
+                                `).join('')}
                             </div>
-                        </div>
-                        
-                        <!-- Average P&L -->
-                        <div class="bg-gray-700 p-4 rounded-lg mb-4 text-center">
-                            <div class="text-sm text-gray-400 mb-1">Average Unrealized P&L</div>
-                            <div class="text-3xl font-bold ${summary.avg_unrealized_pnl.startsWith('+') ? 'text-green-400' : 'text-red-400'}">
-                                ${summary.avg_unrealized_pnl}
-                            </div>
-                        </div>
-                        
-                        <!-- Position List -->
-                        <div class="space-y-3">
-                            ${data.positions.map(pos => `
-                                <div class="bg-gray-700 p-4 rounded-lg border-l-4 ${pos.status === 'winning' ? 'border-green-500' : 'border-red-500'}">
-                                    <div class="flex justify-between items-start mb-2">
-                                        <div>
-                                            <div class="font-bold text-lg">${pos.symbol}</div>
-                                            <div class="text-sm text-gray-400">${pos.signal} Signal</div>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="text-2xl font-bold ${pos.pnl_pct >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                                ${pos.pnl_pct >= 0 ? '+' : ''}${pos.pnl_pct.toFixed(2)}%
-                                            </div>
-                                            <div class="text-xs text-gray-400">${pos.status}</div>
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-4 text-sm">
-                                        <div>
-                                            <span class="text-gray-400">Entry:</span> 
-                                            <span class="font-semibold">Rp ${pos.entry_price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
-                                        </div>
-                                        <div>
-                                            <span class="text-gray-400">Current:</span> 
-                                            <span class="font-semibold">Rp ${pos.current_price.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
-                                        </div>
-                                    </div>
-                                    <div class="text-xs text-gray-500 mt-2">
-                                        ${new Date(pos.timestamp).toLocaleString('id-ID')}
-                                    </div>
-                                </div>
-                            `).join('')}
+                            <button onclick="analyzeSingleStock('${symbol}')" 
+                                    class="mt-3 w-full px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-xs font-semibold transition">
+                                View Details
+                            </button>
                         </div>
                     `;
-                }
+                }).join('');
+
             } catch (error) {
-                console.error('Error loading live performance:', error);
-                document.getElementById('livePerformance').innerHTML = `
-                    <div class="text-center text-gray-400 py-8">
-                        <p>⚠️ Unable to load live performance</p>
-                        <p class="text-sm mt-2">${error.message}</p>
-                    </div>
-                `;
+                document.getElementById('alertsLoading').classList.add('hidden');
+                console.error('Alerts loading error:', error);
+                alert(`Error loading alerts: ${error.message}`);
             }
         }
 
-        // Load Backtest Performance
-        async function loadBacktest() {
-            try {
-                const response = await fetch(`${API_URL}/api/backtest/summary`);
-                const data = await response.json();
-                
-                const container = document.getElementById('backtestContent');
-                
-                if (data.status === 'no_data') {
-                    container.innerHTML = `
-                        <div class="text-center text-gray-400 py-8">
-                            <p class="mb-4">📊 No backtest data available yet</p>
-                            <p class="text-sm">Run backtester.py to see historical performance</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                const metrics = data.metrics;
-                const assessment = data.assessment;
-                
-                // Color for assessment
-                const assessmentColor = {
-                    'Excellent': 'text-green-400',
-                    'Good': 'text-blue-400',
-                    'Moderate': 'text-yellow-400',
-                    'Needs Improvement': 'text-red-400'
-                }[assessment] || 'text-gray-400';
-                
-                container.innerHTML = `
-                    <!-- Assessment Badge -->
-                    <div class="text-center mb-6">
-                        <div class="text-sm text-gray-400 mb-2">Strategy Assessment</div>
-                        <div class="text-3xl font-bold ${assessmentColor}">
-                            ${assessment}
-                        </div>
-                    </div>
-                    
-                    <!-- Key Metrics Grid -->
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-purple-300">${metrics.win_rate.toFixed(1)}%</div>
-                            <div class="text-xs text-gray-400 mt-1">Win Rate</div>
-                        </div>
-                        
-                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold ${metrics.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}">
-                                ${metrics.total_return_pct >= 0 ? '+' : ''}${metrics.total_return_pct.toFixed(2)}%
-                            </div>
-                            <div class="text-xs text-gray-400 mt-1">Total Return</div>
-                        </div>
-                        
-                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-purple-300">${metrics.profit_factor.toFixed(2)}</div>
-                            <div class="text-xs text-gray-400 mt-1">Profit Factor</div>
-                        </div>
-                        
-                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-red-400">${metrics.max_drawdown.toFixed(2)}%</div>
-                            <div class="text-xs text-gray-400 mt-1">Max Drawdown</div>
-                        </div>
-                        
-                        <div class="bg-purple-800 bg-opacity-30 p-4 rounded-lg text-center">
-                            <div class="text-2xl font-bold text-purple-300">${metrics.total_trades}</div>
-                            <div class="text-xs text-gray-400 mt-1">Total Trades</div>
-                        </div>
-                    </div>
-                    
-                    <!-- Last Update -->
-                    <div class="text-center mt-4 text-xs text-gray-400">
-                        Last backtest: ${new Date(data.last_update).toLocaleString('id-ID')}
-                    </div>
-                `;
-            } catch (error) {
-                console.error('Error loading backtest:', error);
-                document.getElementById('backtestContent').innerHTML = `
-                    <div class="text-center text-gray-400 py-4">
-                        ⚠️ Unable to load backtest data
-                    </div>
-                `;
-            }
+        // Close Alerts Modal
+        function closeAlertsModal() {
+            document.getElementById('alertsModal').classList.add('hidden');
         }
 
-        // Refresh backtest (callable from button)
-        async function refreshBacktest() {
-            document.getElementById('backtestContent').innerHTML = 
-                '<div class="text-center text-gray-400 py-4">🔄 Refreshing...</div>';
-            await loadBacktest();
+        // Analyze single stock from alerts
+        function analyzeSingleStock(symbol) {
+            closeAlertsModal();
+            document.getElementById('momentumSymbol').value = symbol;
+            showMomentumAnalyzer();
+            analyzeMomentum();
         }
 
-        // Update timestamp
-        function updateTimestamp() {
-            const now = new Date();
-            document.getElementById('lastUpdate').textContent = 
-                now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        }
-
-        // Load all data
-        async function loadAllData() {
-            await Promise.all([
-                loadStocks(),
-                loadSignals(),
-                loadNews(),
-                loadLivePerformance(),
-                loadBacktest()
-            ]);
-            updateTimestamp();
+        // Refresh all data
+        async function refreshAll() {
+            await Promise.all([loadStocks(), loadSignals()]);
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('id-ID');
         }
 
         // Initial load
-        loadAllData();
+        refreshAll();
 
         // Auto-refresh every 30 seconds
-        setInterval(loadAllData, 10000);
-        
-        // Update timestamp every second
-        setInterval(updateTimestamp, 1000);
+        setInterval(refreshAll, 30000);
 
-        console.log('âœ… Dashboard loaded! Backend:', API_URL);
-        function showChart(symbol) {
-            console.log('Opening chart for:', symbol);
-            
-            // Show modal
-            document.getElementById('chartModal').classList.remove('hidden');
-            document.getElementById('chartTitle').textContent = `${symbol} - Price Chart`;
-            
-            // Create TradingView widget
-            new TradingView.widget({
-                "symbol": `IDX:${symbol}`,
-                "interval": "D",
-                "timezone": "Asia/Jakarta",
-                "theme": "dark",
-                "style": "1",
-                "locale": "id",
-                "toolbar_bg": "#1f2937",
-                "enable_publishing": false,
-                "allow_symbol_change": false,
-                "container_id": "tradingview_widget",
-                "studies": [
-                    "RSI@tv-basicstudies",
-                    "MACD@tv-basicstudies",
-                    "MASimple@tv-basicstudies"
-                ],
-                "hide_side_toolbar": false,
-                "width": "100%",
-                "height": "500"
-            });
-        }
-        
-        // Close chart modal
-        function closeChart() {
-            document.getElementById('chartModal').classList.add('hidden');
-            // Clear widget
-            document.getElementById('tradingview_widget').innerHTML = '';
-        }
-        
-        // Close modal when clicking outside
-        document.getElementById('chartModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeChart();
-            }
-        });
+        console.log('✅ Dashboard with Momentum Analysis loaded!');
     </script>
 </body>
 </html>
